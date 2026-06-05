@@ -42,9 +42,11 @@ const DriverPage = {
     DriverPage.tourneeId = tournee?.id;
     DriverPage.statut = tournee?.statut || 'depart';
 
-    const route = attr?.planning?.route || attr?.route || '—';
+    const route = attr?.route || '—';
     const plaque = attr?.plaque || null;
     const tpRef = attr?.telepeage_badges?.reference || null;
+    const vagueNum = attr?.vague;
+    const vague = vagueNum === '1' ? '1ère vague — 12h10' : vagueNum === '2' ? '2ème vague — 12h20' : vagueNum === '3' ? '3ème vague' : null;
 
     document.getElementById('screen-driver').innerHTML = `
     <div class="topbar">
