@@ -14,7 +14,10 @@ const DriverPage = {
     // Charge attribution du jour
     const { data: attr } = await supabase
       .from('vehicule_attributions')
-.select('*, telepeage_badges(reference)').eq('profile_id', p.id).eq('date', today())      .single();
+      .select('*, telepeage_badges(reference)')
+      .eq('profile_id', p.id)
+      .eq('date', today())
+      .maybeSingle();
 
     DriverPage.attribution = attr;
 
@@ -24,7 +27,7 @@ const DriverPage = {
       .select('*')
       .eq('profile_id', p.id)
       .eq('date', today())
-      .single();
+      .maybeSingle();
 
     if (!tournee) {
       const { data: newT } = await supabase.from('tournees').insert({
@@ -32,7 +35,7 @@ const DriverPage = {
         vehicule_attribution_id: attr?.id || null,
         date: today(),
         statut: 'depart'
-      }).select().single();
+      }).select().maybeSingle();
       tournee = newT;
     }
 
@@ -262,7 +265,7 @@ const DriverPage = {
     const km = document.getElementById('km-retour').value;
     if (!km) return toast('Merci de saisir le kilométrage de retour.');
 
-    const { data: t } = await supabase.from('tournees').select('km_depart').eq('id', DriverPage.tourneeId).single();
+    const { data: t } = await supabase.from('tournees').select('km_depart').eq('id', DriverPage.tourneeId).maybeSingle();
     if (t?.km_depart && parseInt(km) <= t.km_depart) return toast('Le km de retour doit être supérieur au km de départ.');
 
     const btn = document.getElementById('btn-retour');
@@ -292,7 +295,7 @@ const DriverPage = {
       document.getElementById('step-soir-btn').className = 'step-item done';
       document.getElementById('statut-badge').innerHTML = '<span class="badge b-green">Clôturé ✓</span>';
 
-      const { data: updated } = await supabase.from('tournees').select('*').eq('id', DriverPage.tourneeId).single();
+      const { data: updated } = await supabase.from('tournees').select('*').eq('id', DriverPage.tourneeId).maybeSingle();
       document.getElementById('step-cloture').innerHTML = DriverPage.renderCloture(updated);
       toast('Tournée clôturée ✓');
     } catch(e) {
