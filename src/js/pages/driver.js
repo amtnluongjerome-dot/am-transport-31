@@ -14,10 +14,7 @@ const DriverPage = {
     // Charge attribution du jour
     const { data: attr } = await supabase
       .from('vehicule_attributions')
-      .select('*, telepeage_badges(reference), planning(route)')
-      .eq('profile_id', p.id)
-      .eq('date', today())
-      .single();
+.select('*, telepeage_badges(reference)').eq('profile_id', p.id).eq('date', today())      .single();
 
     DriverPage.attribution = attr;
 
