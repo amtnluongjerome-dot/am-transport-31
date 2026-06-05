@@ -317,6 +317,14 @@ const ManagerPage = {
             <input class="form-input" type="text" id="veh-plaque" placeholder="AB-1234-CD" style="font-family:monospace;letter-spacing:1px;text-transform:uppercase;">
           </div>
           <div class="form-row"><label class="form-label">Numéro de route</label><input class="form-input" type="text" id="veh-route" placeholder="Ex: R-14" style="text-transform:uppercase;"></div>
+          <div class="form-row"><label class="form-label">Vague de départ</label>
+            <select class="form-input" id="veh-vague">
+              <option value="">— Aucune —</option>
+              <option value="1">1ère vague — 12h10</option>
+              <option value="2">2ème vague — 12h20</option>
+              <option value="3">3ème vague</option>
+            </select>
+          </div>
           <div class="form-row"><label class="form-label">Badge télépéage</label>
             <select class="form-input" id="veh-badge">
               <option value="">— Aucun —</option>
@@ -340,11 +348,12 @@ const ManagerPage = {
     const driver = document.getElementById('veh-driver').value;
     const plaque = document.getElementById('veh-plaque').value.trim().toUpperCase();
     const route  = document.getElementById('veh-route').value.trim().toUpperCase() || null;
+    const vague  = document.getElementById('veh-vague').value || null;
     const badge  = document.getElementById('veh-badge').value || null;
     const date   = document.getElementById('veh-date').value;
     if (!driver || !plaque || !date) return toast('Merci de remplir tous les champs obligatoires.');
     const { error } = await supabase.from('vehicule_attributions').upsert({
-      profile_id: driver, plaque, route, telepeage_badge_id: badge || null, date
+      profile_id: driver, plaque, route, vague, telepeage_badge_id: badge || null, date
     }, { onConflict: 'profile_id,date' });
     if (error) return toast('Erreur : ' + error.message);
     toast('Véhicule attribué ✓');
