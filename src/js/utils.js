@@ -28,10 +28,13 @@ function fmtNum(val) {
   if (!val && val !== 0) return '—';
   return Number(val).toLocaleString('fr-FR');
 }
-
 function today() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().split('T')[0];
 }
+
 
 function initials(name) {
   if (!name) return '??';
