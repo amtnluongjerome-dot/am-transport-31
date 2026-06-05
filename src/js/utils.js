@@ -91,12 +91,11 @@ function routeBadge(route) {
 async function uploadPhoto(file, folder) {
   const ext = file.name.split('.').pop();
   const name = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-  const { data, error } = await supabase.storage.from('photos').upload(name, file);
+ const { error } = await supabase.storage.from('photos').upload(name, file);
   if (error) throw error;
-  const { data: url } = supabase.storage.from('photos').getPublicUrl(name);
-  return url.publicUrl;
-}
+  const { data: signed } = await supabase.storage
+    .from('photos')
+    .createSignedUrl(name, 60 * 60 * 24 * 365);
+  return signed.signedUrl;
 
-function confirmAction(msg) {
-  return window.confirm(msg);
 }
