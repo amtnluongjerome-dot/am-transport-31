@@ -66,6 +66,7 @@ const DriverPage = {
         </div>
         ${tpRef ? `<div class="vb-item"><label>💳 Badge télépéage</label><div class="tp-tag">${tpRef}</div></div>` : ''}
         <div class="vb-item"><label>📍 Route</label>${routeBadge(route)}</div>
+        ${vague ? `<div class="vb-item"><label>🕐 Vague</label><span class="badge b-amber" style="font-size:12px;padding:4px 10px;">${vague}</span></div>` : ''}
         <div class="vb-item" style="margin-left:auto;">
           <label>Statut</label>
           <div id="statut-badge">${DriverPage.getStatutBadge(DriverPage.statut)}</div>
