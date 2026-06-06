@@ -665,10 +665,26 @@ const ManagerPage = {
     btn.innerHTML = '<span class="spinner"></span> Création...';
 
     try {
-      const { error } = await supabase.functions.invoke('create-driver', {
-        body: { full_name: name, email }
-      });
-      if (error) throw error;
+      const session = await supabase.auth.getSession();
+      const token = session.data.session.access_token;
+
+      const response = await fetch(
+        'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/create-driver',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ full_name: name, email })
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erreur inconnue');
+      }
+
       toast('Compte créé ✓ — mot de passe temporaire : ChangeMe2024!');
       document.getElementById('adm-name').value = '';
       document.getElementById('adm-email').value = '';
