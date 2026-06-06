@@ -45,6 +45,20 @@ const ManagerPage = {
         <div class="panel" id="panel-performance"></div>
         <div class="panel" id="panel-admin"></div>
       </div>
+    </div>
+    <!-- Popup planning -->
+    <div id="planning-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;" id="popup-title">Planning</div>
+        <div style="font-size:12px;color:#9CA3AF;margin-bottom:16px;" id="popup-subtitle"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <button onclick="ManagerPage.savePlanningStat('travail')" style="padding:14px;border-radius:12px;border:2px solid #D1FAE5;background:#F0FDF4;color:#166534;font-weight:700;font-size:14px;cursor:pointer;">🟢 Travail</button>
+          <button onclick="ManagerPage.savePlanningStat('repos')" style="padding:14px;border-radius:12px;border:2px solid #E5E7EB;background:#F9FAFB;color:#6B7280;font-weight:700;font-size:14px;cursor:pointer;">⚪ Repos</button>
+          <button onclick="ManagerPage.savePlanningStat('cut')" style="padding:14px;border-radius:12px;border:2px solid #FEE2E2;background:#FFF5F5;color:#991B1B;font-weight:700;font-size:14px;cursor:pointer;">✂️ Cut</button>
+          <button onclick="ManagerPage.savePlanningStat('mad')" style="padding:14px;border-radius:12px;border:2px solid #DBEAFE;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:14px;cursor:pointer;">🔵 MAD</button>
+        </div>
+        <button onclick="ManagerPage.closePlanningPopup()" style="width:100%;padding:10px;border-radius:10px;border:1px solid #E5E7EB;background:#fff;color:#6B7280;cursor:pointer;font-size:13px;">Annuler</button>
+      </div>
     </div>`;
     await ManagerPage.loadDashboard();
   },
@@ -170,95 +184,112 @@ const ManagerPage = {
   },
 
   // ── PLANNING ──
+  _planningWeekOffset: 0,
+
   async loadPlanning() {
     const el = document.getElementById('panel-planning');
     el.innerHTML = '<p class="text-muted">Chargement...</p>';
     try {
+      const offset = ManagerPage._planningWeekOffset || 0;
+      const startDate = new Date(Date.now() + offset * 7 * 86400000);
+      const days = Array.from({length:7}, (_,i) => {
+        const d = new Date(startDate.getTime() + i * 86400000);
+        return {
+          date: d.toISOString().split('T')[0],
+          label: d.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'numeric'})
+        };
+      });
+
       const { data: planning } = await supabase
         .from('planning')
         .select('*, profiles(full_name)')
-        .gte('date', today())
-        .lte('date', new Date(Date.now() + 6*86400000).toISOString().split('T')[0])
-        .order('date');
+        .gte('date', days[0].date)
+        .lte('date', days[6].date);
 
       const { data: chauffeurs } = await supabase
         .from('profiles').select('id,full_name').eq('role','driver').order('full_name');
 
-      const days = Array.from({length:7}, (_,i) => {
-        const d = new Date(Date.now() + i*86400000);
-        return { date: d.toISOString().split('T')[0], label: d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'numeric'}) };
-      });
+      const statutCell = (entry) => {
+        if (!entry) return `<div style="width:100%;height:36px;border-radius:8px;background:#F3F4F6;border:2px dashed #E5E7EB;cursor:pointer;"></div>`;
+        const map = {
+          'travail': 'background:#D1FAE5;color:#166534;border:2px solid #A7F3D0;',
+          'repos':   'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;',
+          'cut':     'background:#FEE2E2;color:#991B1B;border:2px solid #FECACA;',
+          'mad':     'background:#DBEAFE;color:#1E40AF;border:2px solid #BFDBFE;',
+        };
+        const icons = { travail:'🟢', repos:'⚪', cut:'✂️', mad:'🔵' };
+        const style = map[entry.statut] || 'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;';
+        return `<div style="width:100%;height:36px;border-radius:8px;${style}display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;">${icons[entry.statut]||''} ${entry.statut?.toUpperCase()||''}</div>`;
+      };
 
       el.innerHTML = `
-      <div class="card">
-        <div class="card-title">📅 Planning — 7 prochains jours
+      <div class="card" style="overflow-x:auto;">
+        <div class="card-title">📅 Planning
           <div class="card-actions">
-            <button class="btn sm primary" onclick="ManagerPage.exportPlanning()">⬇ Export</button>
+            <button class="btn sm" onclick="ManagerPage._planningWeekOffset--;ManagerPage.loadPlanning()">◀ Préc.</button>
+            <span style="font-size:12px;color:#6B7280;padding:0 8px;">${days[0].label} → ${days[6].label}</span>
+            <button class="btn sm" onclick="ManagerPage._planningWeekOffset++;ManagerPage.loadPlanning()">Suiv. ▶</button>
           </div>
         </div>
-        <div class="tbl-wrap">
-        <table class="tbl">
+        <table style="width:100%;border-collapse:collapse;min-width:700px;">
           <thead>
             <tr>
-              <th>Chauffeur</th>
-              ${days.map(d=>`<th>${d.label}</th>`).join('')}
+              <th style="text-align:left;padding:8px 12px;font-size:12px;color:#6B7280;width:160px;">Chauffeur</th>
+              ${days.map(d => `<th style="text-align:center;padding:8px 6px;font-size:11px;color:#6B7280;">${d.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${(chauffeurs||[]).map(c => {
-              const rows = days.map(d => {
+              const cells = days.map(d => {
                 const entry = planning?.find(p => p.profile_id === c.id && p.date === d.date);
-                if (!entry) return '<td>—</td>';
-                if (entry.statut === 'conge') return `<td><span class="text-muted text-sm">Congé</span></td>`;
-                if (entry.statut === 'maladie') return `<td><span class="text-muted text-sm">Maladie</span></td>`;
-                return `<td>${routeBadge(entry.route)}</td>`;
+                return `<td style="padding:4px 6px;text-align:center;" onclick="ManagerPage.openPlanningPopup('${c.id}','${c.full_name}','${d.date}','${d.label}')">${statutCell(entry)}</td>`;
               }).join('');
-              return `<tr><td>${avatarHTML(c.full_name,28)} ${c.full_name}</td>${rows}</tr>`;
-            }).join('') || '<tr><td colspan="8" class="text-muted">Aucun planning saisi</td></tr>'}
+              return `<tr>
+                <td style="padding:8px 12px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    ${avatarHTML(c.full_name, 28)}
+                    <span style="font-size:13px;font-weight:500;">${c.full_name}</span>
+                  </div>
+                </td>
+                ${cells}
+              </tr>`;
+            }).join('') || '<tr><td colspan="8" class="text-muted">Aucun chauffeur</td></tr>'}
           </tbody>
         </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">✏️ Ajouter / modifier une entrée</div>
-        <div class="grid-4">
-          <div class="form-row">
-            <label class="form-label">Chauffeur</label>
-            <select class="form-input" id="plan-driver">
-              ${(chauffeurs||[]).map(c=>`<option value="${c.id}">${c.full_name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-row"><label class="form-label">Date</label><input class="form-input" type="date" id="plan-date" value="${today()}"></div>
-          <div class="form-row"><label class="form-label">Route (ex: R-14)</label><input class="form-input" type="text" id="plan-route" placeholder="R-14"></div>
-          <div class="form-row">
-            <label class="form-label">Statut</label>
-            <select class="form-input" id="plan-statut">
-              <option value="actif">Route active</option>
-              <option value="conge">Congé</option>
-              <option value="maladie">Maladie</option>
-              <option value="formation">Formation</option>
-            </select>
-          </div>
-        </div>
-        <div class="flex-end">
-          <button class="btn primary" onclick="ManagerPage.savePlanning()">✓ Enregistrer</button>
-        </div>
       </div>`;
     } catch(e) {
       el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
     }
   },
 
-  async savePlanning() {
-    const driver = document.getElementById('plan-driver').value;
-    const date   = document.getElementById('plan-date').value;
-    const route  = document.getElementById('plan-route').value.trim().toUpperCase();
-    const statut = document.getElementById('plan-statut').value;
-    if (!driver || !date) return toast('Merci de remplir tous les champs.');
+  openPlanningPopup(driverId, driverName, date, dateLabel) {
+    ManagerPage._popupDriverId = driverId;
+    ManagerPage._popupDate = date;
+    const popup = document.getElementById('planning-popup');
+    document.getElementById('popup-title').textContent = driverName;
+    document.getElementById('popup-subtitle').textContent = dateLabel;
+    popup.style.display = 'flex';
+  },
+
+  closePlanningPopup() {
+    document.getElementById('planning-popup').style.display = 'none';
+  },
+
+  async savePlanningStat(statut) {
+    const driverId = ManagerPage._popupDriverId;
+    const date = ManagerPage._popupDate;
+    if (!driverId || !date) return;
+
     const { error } = await supabase.from('planning').upsert({
-      profile_id: driver, date, route: statut === 'actif' ? route : null, statut
+      profile_id: driverId,
+      date,
+      statut,
+      route: null
     }, { onConflict: 'profile_id,date' });
-    if (error) return toast('Erreur : ' + error.message);
+
+    if (error) { toast('Erreur : ' + error.message); return; }
+
+    ManagerPage.closePlanningPopup();
     toast('Planning mis à jour ✓');
     ManagerPage.loadPlanning();
   },
@@ -683,18 +714,9 @@ const ManagerPage = {
         <table class="tbl">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Chauffeur</th>
-              <th>Statut</th>
-              <th>Moyenne</th>
-              <th>Colis livrés</th>
-              <th>Réussite livraison</th>
-              <th>Remboursement</th>
-              <th>LOR DPMO</th>
-              <th>Photo</th>
-              <th>Contact</th>
-              <th>Plainte</th>
-              <th>Note client</th>
+              <th>#</th><th>Chauffeur</th><th>Statut</th><th>Moyenne</th>
+              <th>Colis livrés</th><th>Réussite livraison</th><th>Remboursement</th>
+              <th>LOR DPMO</th><th>Photo</th><th>Contact</th><th>Plainte</th><th>Note client</th>
             </tr>
           </thead>
           <tbody id="perf-tbody">
@@ -705,7 +727,7 @@ const ManagerPage = {
       </div>
       <div class="card" id="import-perf-card" style="display:none;">
         <div class="card-title">⬆ Importer le scorecard Excel</div>
-        <p class="text-muted text-sm" style="margin-bottom:12px;">Sélectionnez votre fichier Excel hebdomadaire. Les données seront extraites automatiquement depuis la feuille SCORECARD.</p>
+        <p class="text-muted text-sm" style="margin-bottom:12px;">Sélectionnez votre fichier Excel hebdomadaire.</p>
         <div class="grid-2">
           <div class="form-row">
             <label class="form-label">Semaine (ex: W23)</label>
@@ -742,11 +764,6 @@ const ManagerPage = {
       return map[s] || `<span class="badge b-gray">${s || '—'}</span>`;
     };
 
-    const fmtPct = (v) => {
-      if (v === null || v === undefined) return '—';
-      return (Math.round(v * 10000) / 100).toFixed(2) + '%';
-    };
-
     const fmtNum2 = (v) => {
       if (v === null || v === undefined) return '—';
       const n = parseFloat(v);
@@ -755,7 +772,7 @@ const ManagerPage = {
 
     const pctColor = (v) => {
       if (v === null || v === undefined) return '';
-      const n = parseFloat(v) * 100;
+      const n = parseFloat(v) > 2 ? parseFloat(v) : parseFloat(v) * 100;
       if (n >= 99) return 'color:#1E7E34;font-weight:600';
       if (n >= 97) return 'color:#92400E;font-weight:600';
       return 'color:#B91C1C;font-weight:600';
@@ -767,6 +784,13 @@ const ManagerPage = {
       if (isNaN(n)) return '';
       if (inverse) return n === 0 ? 'color:#1E7E34;font-weight:600' : n <= 1000 ? 'color:#92400E;font-weight:600' : 'color:#B91C1C;font-weight:600';
       return n === 0 ? 'color:#1E7E34;font-weight:600' : 'color:#B91C1C;font-weight:600';
+    };
+
+    const fmtPct = (v) => {
+      if (v === null || v === undefined) return '—';
+      const n = parseFloat(v);
+      if (isNaN(n)) return '—';
+      return n > 2 ? n.toFixed(2) + '%' : (n * 100).toFixed(2) + '%';
     };
 
     const moyColor = (v) => {
@@ -783,11 +807,11 @@ const ManagerPage = {
         <td>${statutBadge(d.statut)}</td>
         <td style="${moyColor(d.moyenne)}">${fmtNum2(d.moyenne)}</td>
         <td>${d.colis_livres ?? '—'}</td>
-        <td style="${pctColor(d.reussite_livraison_pct)}">${d.reussite_livraison_pct !== null ? (Math.round(d.reussite_livraison_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
+        <td style="${pctColor(d.reussite_livraison_pct)}">${fmtPct(d.reussite_livraison_pct)}</td>
         <td style="${numColor(d.remboursement_colis, true)}">${d.remboursement_colis ?? '—'}</td>
         <td style="${numColor(d.lor_dpmo, true)}">${d.lor_dpmo ?? '—'}</td>
-        <td style="${pctColor(d.photo_pct)}">${d.photo_pct !== null ? (Math.round(d.photo_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
-        <td style="${pctColor(d.contact_pct)}">${d.contact_pct !== null ? (Math.round(d.contact_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
+        <td style="${pctColor(d.photo_pct)}">${fmtPct(d.photo_pct)}</td>
+        <td style="${pctColor(d.contact_pct)}">${fmtPct(d.contact_pct)}</td>
         <td style="${numColor(d.plainte_client)}">${d.plainte_client ?? '—'}</td>
         <td>${d.note_client ?? '—'}</td>
       </tr>
@@ -829,7 +853,6 @@ const ManagerPage = {
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-      // Trouve la ligne header (contient "Classement")
       let headerRow = -1;
       for (let i = 0; i < rows.length; i++) {
         if (rows[i].some(c => String(c||'').toLowerCase().includes('classement'))) {
@@ -838,10 +861,6 @@ const ManagerPage = {
         }
       }
       if (headerRow === -1) throw new Error('Format non reconnu — colonne Classement introuvable');
-
-      // Colonnes A-N uniquement (index 0-13)
-      // 0=Classement, 1=Nom, 2=Entreprise, 3=Statut, 4=Moyenne, 5=TransporterID
-      // 6=Colis, 7=Réussite%, 8=Remboursement, 9=LOR, 10=Photo%, 11=Contact%, 12=Plainte, 13=Note
 
       const dataRows = rows.slice(headerRow + 1).filter(r => r[1] && String(r[1]).trim() !== '');
       const total = dataRows.length;
@@ -864,7 +883,6 @@ const ManagerPage = {
         contact_pct: r[11] !== null ? parseFloat(r[11]) : null,
         plainte_client: r[12] !== null ? parseInt(r[12]) : null,
         note_client: r[13] !== null ? String(r[13]) : null,
-        // Scores ignorés (colonnes O et au-delà)
         score_reussite: null,
         score_remboursement: null,
         score_lor: null,
