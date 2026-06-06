@@ -157,8 +157,13 @@ const DriverPage = {
         return parseFloat(v) === 0 ? 'color:#1E7E34;font-weight:700' : 'color:#B91C1C;font-weight:700';
       };
 
-      const fmtPct = (v) => v !== null && v !== undefined ? (Math.round(parseFloat(v) * 10000) / 100).toFixed(2) + '%' : '—';
-
+const fmtPct = (v) => {
+  if (v === null || v === undefined) return '—';
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  // Si déjà en pourcentage (> 2), afficher directement
+  return n > 2 ? n.toFixed(2) + '%' : (n * 100).toFixed(2) + '%';
+};
       el.innerHTML = `
       <div class="card" style="margin-top:16px;">
         <div class="card-title">🏆 Mes performances — ${derniereSemaine}</div>
