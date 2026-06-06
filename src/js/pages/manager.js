@@ -667,24 +667,6 @@ const ManagerPage = {
         data = perf || [];
       }
 
-      const statutBadge = (s) => {
-        const map = {
-          'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;">⭐ Fantastic +</span>',
-          'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;">✅ Fantastic</span>',
-          'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;">👍 Great</span>',
-          'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;">⚠️ Fair</span>',
-          'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;">❌ Poor</span>',
-        };
-        return map[s] || `<span class="badge b-gray">${s}</span>`;
-      };
-
-      const scoreColor = (v) => {
-        if (v === null || v === undefined) return 'color:#9CA3AF';
-        if (v >= 95) return 'color:#1E7E34;font-weight:600';
-        if (v >= 80) return 'color:#92400E;font-weight:600';
-        return 'color:#B91C1C;font-weight:600';
-      };
-
       const total = data.length;
 
       el.innerHTML = `
@@ -701,26 +683,22 @@ const ManagerPage = {
         <table class="tbl">
           <thead>
             <tr>
-              <th>#</th><th>Chauffeur</th><th>Statut</th><th>Moyenne</th>
-              <th>Livraison</th><th>Remboursement</th><th>LOR</th><th>Photo</th><th>Contact</th><th>Plainte</th><th>Note</th>
+              <th>#</th>
+              <th>Chauffeur</th>
+              <th>Statut</th>
+              <th>Moyenne</th>
+              <th>Colis livrés</th>
+              <th>Réussite livraison</th>
+              <th>Remboursement</th>
+              <th>LOR DPMO</th>
+              <th>Photo</th>
+              <th>Contact</th>
+              <th>Plainte</th>
+              <th>Note client</th>
             </tr>
           </thead>
-          <tbody>
-          ${data.map((d) => `
-            <tr>
-              <td class="text-muted">${d.classement}/${total}</td>
-              <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
-              <td>${statutBadge(d.statut)}</td>
-              <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
-              <td style="${scoreColor(d.score_reussite)}">${d.score_reussite ?? '—'}</td>
-              <td style="${scoreColor(d.score_remboursement)}">${d.score_remboursement ?? '—'}</td>
-              <td style="${scoreColor(d.score_lor)}">${d.score_lor ?? '—'}</td>
-              <td style="${scoreColor(d.score_photo)}">${d.score_photo ?? '—'}</td>
-              <td style="${scoreColor(d.score_contact)}">${d.score_contact ?? '—'}</td>
-              <td style="${scoreColor(d.score_plainte)}">${d.score_plainte ?? '—'}</td>
-              <td style="${scoreColor(d.score_note)}">${d.score_note ?? '—'}</td>
-            </tr>
-          `).join('') || '<tr><td colspan="11" class="text-muted">Aucune donnée — importez un fichier Excel</td></tr>'}
+          <tbody id="perf-tbody">
+          ${ManagerPage.renderPerfRows(data, total)}
           </tbody>
         </table>
         </div>
@@ -748,6 +726,74 @@ const ManagerPage = {
     }
   },
 
+  renderPerfRows(data, total) {
+    if (!data || data.length === 0) {
+      return '<tr><td colspan="12" class="text-muted">Aucune donnée — importez un fichier Excel</td></tr>';
+    }
+
+    const statutBadge = (s) => {
+      const map = {
+        'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;">⭐ Fantastic +</span>',
+        'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;">✅ Fantastic</span>',
+        'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;">👍 Great</span>',
+        'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;">⚠️ Fair</span>',
+        'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;">❌ Poor</span>',
+      };
+      return map[s] || `<span class="badge b-gray">${s || '—'}</span>`;
+    };
+
+    const fmtPct = (v) => {
+      if (v === null || v === undefined) return '—';
+      return (Math.round(v * 10000) / 100).toFixed(2) + '%';
+    };
+
+    const fmtNum2 = (v) => {
+      if (v === null || v === undefined) return '—';
+      const n = parseFloat(v);
+      return isNaN(n) ? '—' : Math.round(n * 100) / 100;
+    };
+
+    const pctColor = (v) => {
+      if (v === null || v === undefined) return '';
+      const n = parseFloat(v) * 100;
+      if (n >= 99) return 'color:#1E7E34;font-weight:600';
+      if (n >= 97) return 'color:#92400E;font-weight:600';
+      return 'color:#B91C1C;font-weight:600';
+    };
+
+    const numColor = (v, inverse = false) => {
+      if (v === null || v === undefined) return '';
+      const n = parseFloat(v);
+      if (isNaN(n)) return '';
+      if (inverse) return n === 0 ? 'color:#1E7E34;font-weight:600' : n <= 1000 ? 'color:#92400E;font-weight:600' : 'color:#B91C1C;font-weight:600';
+      return n === 0 ? 'color:#1E7E34;font-weight:600' : 'color:#B91C1C;font-weight:600';
+    };
+
+    const moyColor = (v) => {
+      if (!v) return '';
+      if (v >= 95) return 'color:#1E7E34;font-weight:600';
+      if (v >= 85) return 'color:#92400E;font-weight:600';
+      return 'color:#B91C1C;font-weight:600';
+    };
+
+    return data.map((d) => `
+      <tr>
+        <td class="text-muted text-sm">${d.classement}/${total}</td>
+        <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
+        <td>${statutBadge(d.statut)}</td>
+        <td style="${moyColor(d.moyenne)}">${fmtNum2(d.moyenne)}</td>
+        <td>${d.colis_livres ?? '—'}</td>
+        <td style="${pctColor(d.reussite_livraison_pct)}">${d.reussite_livraison_pct !== null ? (Math.round(d.reussite_livraison_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
+        <td style="${numColor(d.remboursement_colis, true)}">${d.remboursement_colis ?? '—'}</td>
+        <td style="${numColor(d.lor_dpmo, true)}">${d.lor_dpmo ?? '—'}</td>
+        <td style="${pctColor(d.photo_pct)}">${d.photo_pct !== null ? (Math.round(d.photo_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
+        <td style="${pctColor(d.contact_pct)}">${d.contact_pct !== null ? (Math.round(d.contact_pct * 100) / 100).toFixed(2) + '%' : '—'}</td>
+        <td style="${numColor(d.plainte_client)}">${d.plainte_client ?? '—'}</td>
+        <td>${d.note_client ?? '—'}</td>
+      </tr>
+    `).join('');
+  },
+
   showImportPerf() {
     const card = document.getElementById('import-perf-card');
     if (card) card.style.display = 'block';
@@ -760,43 +806,9 @@ const ManagerPage = {
       .eq('semaine', semaine)
       .order('classement', { ascending: true });
 
-    const statutBadge = (s) => {
-      const map = {
-        'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;">⭐ Fantastic +</span>',
-        'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;">✅ Fantastic</span>',
-        'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;">👍 Great</span>',
-        'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;">⚠️ Fair</span>',
-        'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;">❌ Poor</span>',
-      };
-      return map[s] || `<span class="badge b-gray">${s}</span>`;
-    };
-
-    const scoreColor = (v) => {
-      if (v === null || v === undefined) return 'color:#9CA3AF';
-      if (v >= 95) return 'color:#1E7E34;font-weight:600';
-      if (v >= 80) return 'color:#92400E;font-weight:600';
-      return 'color:#B91C1C;font-weight:600';
-    };
-
     const total = (perf||[]).length;
-    const tbody = document.querySelector('#panel-performance .tbl tbody');
-    if (tbody) {
-      tbody.innerHTML = (perf||[]).map((d) => `
-        <tr>
-          <td class="text-muted">${d.classement}/${total}</td>
-          <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
-          <td>${statutBadge(d.statut)}</td>
-          <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
-          <td style="${scoreColor(d.score_reussite)}">${d.score_reussite ?? '—'}</td>
-          <td style="${scoreColor(d.score_remboursement)}">${d.score_remboursement ?? '—'}</td>
-          <td style="${scoreColor(d.score_lor)}">${d.score_lor ?? '—'}</td>
-          <td style="${scoreColor(d.score_photo)}">${d.score_photo ?? '—'}</td>
-          <td style="${scoreColor(d.score_contact)}">${d.score_contact ?? '—'}</td>
-          <td style="${scoreColor(d.score_plainte)}">${d.score_plainte ?? '—'}</td>
-          <td style="${scoreColor(d.score_note)}">${d.score_note ?? '—'}</td>
-        </tr>
-      `).join('') || '<tr><td colspan="11" class="text-muted">Aucune donnée</td></tr>';
-    }
+    const tbody = document.getElementById('perf-tbody');
+    if (tbody) tbody.innerHTML = ManagerPage.renderPerfRows(perf, total);
   },
 
   async importPerf() {
@@ -827,16 +839,9 @@ const ManagerPage = {
       }
       if (headerRow === -1) throw new Error('Format non reconnu — colonne Classement introuvable');
 
-      const pct = (v) => {
-        if (v === null || v === undefined) return null;
-        const n = parseFloat(v);
-        if (isNaN(n)) return null;
-        return n > 0 && n < 2 ? Math.round(n * 10000) / 100 : n;
-      };
-
-      // Col: 0=Classement, 1=Nom, 2=Entreprise, 3=Statut, 4=Moyenne, 5=TransporterID
-      // 6=Colis, 7=DCR%, 8=Remboursement, 9=LOR, 10=Photo%, 11=Contact%, 12=Plainte, 13=Note
-      // 14=ScoreLivraison, 15=ScoreRembours, 16=ScoreLOR, 17=ScorePhoto, 18=ScoreContact, 19=ScorePlainte, 20=ScoreNote
+      // Colonnes A-N uniquement (index 0-13)
+      // 0=Classement, 1=Nom, 2=Entreprise, 3=Statut, 4=Moyenne, 5=TransporterID
+      // 6=Colis, 7=Réussite%, 8=Remboursement, 9=LOR, 10=Photo%, 11=Contact%, 12=Plainte, 13=Note
 
       const dataRows = rows.slice(headerRow + 1).filter(r => r[1] && String(r[1]).trim() !== '');
       const total = dataRows.length;
@@ -849,22 +854,24 @@ const ManagerPage = {
         total_chauffeurs: total,
         nom_prenom: String(r[1]).trim(),
         statut: r[3] ? String(r[3]).trim() : null,
-        moyenne: parseFloat(r[4]) || null,
+        moyenne: r[4] !== null ? parseFloat(r[4]) : null,
         transporter_id: r[5] ? String(r[5]).trim() : null,
-        colis_livres: parseInt(r[6]) || null,
-        reussite_livraison_pct: pct(r[7]),
-        remboursement_colis: parseInt(r[8]) || null,
-        lor_dpmo: parseInt(r[9]) || null,
-        photo_pct: pct(r[10]),
-        contact_pct: pct(r[11]),
-        plainte_client: parseInt(r[12]) || null,
-        score_reussite: parseFloat(r[14]) || null,
-        score_remboursement: parseFloat(r[15]) || null,
-        score_lor: parseFloat(r[16]) || null,
-        score_photo: parseFloat(r[17]) || null,
-        score_contact: parseFloat(r[18]) || null,
-        score_plainte: parseFloat(r[19]) || null,
-        score_note: parseFloat(r[20]) || null,
+        colis_livres: r[6] !== null ? parseInt(r[6]) : null,
+        reussite_livraison_pct: r[7] !== null ? parseFloat(r[7]) : null,
+        remboursement_colis: r[8] !== null ? parseInt(r[8]) : null,
+        lor_dpmo: r[9] !== null ? parseInt(r[9]) : null,
+        photo_pct: r[10] !== null ? parseFloat(r[10]) : null,
+        contact_pct: r[11] !== null ? parseFloat(r[11]) : null,
+        plainte_client: r[12] !== null ? parseInt(r[12]) : null,
+        note_client: r[13] !== null ? String(r[13]) : null,
+        // Scores ignorés (colonnes O et au-delà)
+        score_reussite: null,
+        score_remboursement: null,
+        score_lor: null,
+        score_photo: null,
+        score_contact: null,
+        score_plainte: null,
+        score_note: null,
       }));
 
       await supabase.from('performance_semaines').delete().eq('semaine', semaine);
