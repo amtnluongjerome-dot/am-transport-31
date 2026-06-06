@@ -359,55 +359,67 @@ const ManagerPage = {
   },
 
   // ── HISTORIQUE ──
-  async loadHistorique() {
-    const el = document.getElementById('panel-historique');
-    el.innerHTML = '<p class="text-muted">Chargement...</p>';
-    try {
-      const { data: hist } = await supabase
-        .from('vehicule_attributions')
-        .select('*, profiles(full_name), telepeage_badges(reference), tournees(km_depart,km_retour,statut)')
-        .order('date', { ascending: false })
-        .limit(100);
+async loadHistorique() {
+  const el = document.getElementById('panel-historique');
+  el.innerHTML = '<p class="text-muted">Chargement...</p>';
+  try {
+    const { data: hist } = await supabase
+      .from('vehicule_attributions')
+      .select('*, profiles(full_name), telepeage_badges(reference), tournees(km_depart,km_retour,statut,photo_camion_matin,photo_mobilic_matin,photo_camion_soir,photo_mobilic_soir)')
+      .order('date', { ascending: false })
+      .limit(100);
 
-      const plaques = [...new Set((hist||[]).map(h => h.plaque))].sort();
+    const plaques = [...new Set((hist||[]).map(h => h.plaque))].sort();
 
-      el.innerHTML = `
-      <div class="card">
-        <div class="card-title">🕓 Historique des attributions camions
-          <div class="card-actions">
-            <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique(this.value)">
-              <option value="all">Tous les véhicules</option>
-              ${plaques.map(p=>`<option value="${p}">${p}</option>`).join('')}
-            </select>
-            <button class="btn sm primary" onclick="ManagerPage.exportHistorique()">⬇ Export</button>
-          </div>
+    el.innerHTML = `
+    <div class="card">
+      <div class="card-title">🕓 Historique des attributions camions
+        <div class="card-actions">
+          <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique(this.value)">
+            <option value="all">Tous les véhicules</option>
+            ${plaques.map(p=>`<option value="${p}">${p}</option>`).join('')}
+          </select>
+          <button class="btn sm primary" onclick="ManagerPage.exportHistorique()">⬇ Export</button>
         </div>
-        <div class="tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>Date</th><th>Chauffeur</th><th>Plaque</th><th>Télépéage</th><th>Km départ</th><th>Km retour</th><th>Total</th><th>Statut</th></tr></thead>
-          <tbody id="hist-tbody">
-          ${(hist||[]).map(h => {
-            const t = Array.isArray(h.tournees) ? h.tournees[0] : h.tournees;
-            const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
-            return `<tr data-plate="${h.plaque}">
-              <td class="text-muted text-sm">${fmtDate(h.date)}</td>
-              <td>${avatarHTML(h.profiles?.full_name,28)} ${h.profiles?.full_name}</td>
-              <td>${plateBadge(h.plaque)}</td>
-              <td>${tpBadge(h.telepeage_badges?.reference)}</td>
-              <td>${t?.km_depart ? fmtNum(t.km_depart) : '—'}</td>
-              <td>${t?.km_retour ? fmtNum(t.km_retour) : '—'}</td>
-              <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
-              <td>${statusBadge(t?.statut || 'absent')}</td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="8" class="text-muted">Aucun historique</td></tr>'}
-          </tbody>
-        </table>
-        </div>
-      </div>`;
-    } catch(e) {
-      el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
-    }
-  },
+      </div>
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Date</th><th>Chauffeur</th><th>Plaque</th><th>Télépéage</th><th>Km départ</th><th>Km retour</th><th>Total</th><th>Statut</th><th>Photos</th></tr></thead>
+        <tbody id="hist-tbody">
+        ${(hist||[]).map(h => {
+          const t = Array.isArray(h.tournees) ? h.tournees[0] : h.tournees;
+          const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
+          const photos = [
+            { url: t?.photo_camion_matin,  label: '🚛 Matin' },
+            { url: t?.photo_mobilic_matin, label: '📱 Matin' },
+            { url: t?.photo_camion_soir,   label: '🚛 Soir' },
+            { url: t?.photo_mobilic_soir,  label: '📱 Soir' },
+          ].filter(p => p.url);
+          return `<tr data-plate="${h.plaque}">
+            <td class="text-muted text-sm">${fmtDate(h.date)}</td>
+            <td>${avatarHTML(h.profiles?.full_name,28)} ${h.profiles?.full_name}</td>
+            <td>${plateBadge(h.plaque)}</td>
+            <td>${tpBadge(h.telepeage_badges?.reference)}</td>
+            <td>${t?.km_depart ? fmtNum(t.km_depart) : '—'}</td>
+            <td>${t?.km_retour ? fmtNum(t.km_retour) : '—'}</td>
+            <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
+            <td>${statusBadge(t?.statut || 'absent')}</td>
+            <td>
+              ${photos.length > 0
+                ? photos.map(p => `<a href="${p.url}" target="_blank"><button class="btn sm" style="margin:2px;">${p.label}</button></a>`).join('')
+                : '<span class="text-muted">—</span>'
+              }
+            </td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="9" class="text-muted">Aucun historique</td></tr>'}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
+  }
+},
 
   filterHistorique(plate) {
     document.querySelectorAll('#hist-tbody tr').forEach(row => {
