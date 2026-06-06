@@ -663,7 +663,7 @@ const ManagerPage = {
           .from('performance_semaines')
           .select('*')
           .eq('semaine', derniereSemaine)
-          .order('moyenne', { ascending: false });
+          .order('classement', { ascending: true });
         data = perf || [];
       }
 
@@ -685,6 +685,8 @@ const ManagerPage = {
         return 'color:#B91C1C;font-weight:600';
       };
 
+      const total = data.length;
+
       el.innerHTML = `
       <div class="card">
         <div class="card-title">🏆 Performances chauffeurs
@@ -704,9 +706,9 @@ const ManagerPage = {
             </tr>
           </thead>
           <tbody>
-          ${data.map((d, i) => `
+          ${data.map((d) => `
             <tr>
-              <td class="text-muted">${i+1}</td>
+              <td class="text-muted">${d.classement}/${total}</td>
               <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
               <td>${statutBadge(d.statut)}</td>
               <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
@@ -725,15 +727,15 @@ const ManagerPage = {
       </div>
       <div class="card" id="import-perf-card" style="display:none;">
         <div class="card-title">⬆ Importer le scorecard Excel</div>
-        <p class="text-muted text-sm" style="margin-bottom:12px;">Sélectionnez votre fichier Excel hebdomadaire. Les données seront extraites et stockées automatiquement.</p>
+        <p class="text-muted text-sm" style="margin-bottom:12px;">Sélectionnez votre fichier Excel hebdomadaire. Les données seront extraites automatiquement depuis la feuille SCORECARD.</p>
         <div class="grid-2">
           <div class="form-row">
-            <label class="form-label">Semaine (ex: 2026-S23)</label>
-            <input class="form-input" type="text" id="perf-semaine-input" placeholder="2026-S23">
+            <label class="form-label">Semaine (ex: W23)</label>
+            <input class="form-input" type="text" id="perf-semaine-input" placeholder="W23">
           </div>
           <div class="form-row">
-            <label class="form-label">Fichier Excel (.xlsx)</label>
-            <input class="form-input" type="file" id="perf-file" accept=".xlsx,.xls">
+            <label class="form-label">Fichier Excel (.xlsx / .xlsm)</label>
+            <input class="form-input" type="file" id="perf-file" accept=".xlsx,.xls,.xlsm">
           </div>
         </div>
         <div class="flex-end">
@@ -756,7 +758,7 @@ const ManagerPage = {
       .from('performance_semaines')
       .select('*')
       .eq('semaine', semaine)
-      .order('moyenne', { ascending: false });
+      .order('classement', { ascending: true });
 
     const statutBadge = (s) => {
       const map = {
@@ -776,11 +778,12 @@ const ManagerPage = {
       return 'color:#B91C1C;font-weight:600';
     };
 
+    const total = (perf||[]).length;
     const tbody = document.querySelector('#panel-performance .tbl tbody');
     if (tbody) {
-      tbody.innerHTML = (perf||[]).map((d, i) => `
+      tbody.innerHTML = (perf||[]).map((d) => `
         <tr>
-          <td class="text-muted">${i+1}</td>
+          <td class="text-muted">${d.classement}/${total}</td>
           <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
           <td>${statutBadge(d.statut)}</td>
           <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
@@ -809,50 +812,66 @@ const ManagerPage = {
       const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      const sheetName = wb.SheetNames.find(n => n.toUpperCase().trim().includes('SCORECARD')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-      // Trouve la ligne header (contient "Nom Prenom")
+      // Trouve la ligne header (contient "Classement")
       let headerRow = -1;
       for (let i = 0; i < rows.length; i++) {
-        if (rows[i].some(c => String(c||'').includes('Nom Prenom') || String(c||'').includes('NOM'))) {
+        if (rows[i].some(c => String(c||'').toLowerCase().includes('classement'))) {
           headerRow = i;
           break;
         }
       }
-      if (headerRow === -1) throw new Error('Format de fichier non reconnu');
+      if (headerRow === -1) throw new Error('Format non reconnu — colonne Classement introuvable');
 
-      const headers = rows[headerRow];
-      const dataRows = rows.slice(headerRow + 1).filter(r => r[1]); // colonne Nom non vide
+      const pct = (v) => {
+        if (v === null || v === undefined) return null;
+        const n = parseFloat(v);
+        if (isNaN(n)) return null;
+        return n > 0 && n < 2 ? Math.round(n * 10000) / 100 : n;
+      };
 
-      const col = (name) => headers.findIndex(h => String(h||'').toUpperCase().includes(name.toUpperCase()));
+      // Col: 0=Classement, 1=Nom, 2=Entreprise, 3=Statut, 4=Moyenne, 5=TransporterID
+      // 6=Colis, 7=DCR%, 8=Remboursement, 9=LOR, 10=Photo%, 11=Contact%, 12=Plainte, 13=Note
+      // 14=ScoreLivraison, 15=ScoreRembours, 16=ScoreLOR, 17=ScorePhoto, 18=ScoreContact, 19=ScorePlainte, 20=ScoreNote
 
-      const records = dataRows.map(r => ({
+      const dataRows = rows.slice(headerRow + 1).filter(r => r[1] && String(r[1]).trim() !== '');
+      const total = dataRows.length;
+
+      if (total === 0) throw new Error('Aucune donnée trouvée dans la feuille SCORECARD');
+
+      const records = dataRows.map((r, i) => ({
         semaine,
-        nom_prenom: r[col('NOM')] || r[1],
-        statut: r[col('STATUT')] || r[2],
-        moyenne: parseFloat(r[col('MOYENNE')] || r[3]) || null,
-        transporter_id: r[col('TRANSPORTER')] || r[4],
-        colis_livres: parseInt(r[col('COLIS')]) || null,
-        score_reussite: parseFloat(r[headers.lastIndexOf(headers.find(h => String(h||'').includes('REUSSITE')))]) || null,
-        score_remboursement: parseFloat(r[col('REMBOURSEMENT')]) || null,
-        score_lor: parseFloat(r[col('LOR')]) || null,
-        score_photo: parseFloat(r[col('PHOTO')]) || null,
-        score_contact: parseFloat(r[col('CONTACT')]) || null,
-        score_plainte: parseFloat(r[col('PLAINTE')]) || null,
-        score_note: parseFloat(r[col('NOTE')]) || null,
-      })).filter(r => r.nom_prenom);
+        classement: i + 1,
+        total_chauffeurs: total,
+        nom_prenom: String(r[1]).trim(),
+        statut: r[3] ? String(r[3]).trim() : null,
+        moyenne: parseFloat(r[4]) || null,
+        transporter_id: r[5] ? String(r[5]).trim() : null,
+        colis_livres: parseInt(r[6]) || null,
+        reussite_livraison_pct: pct(r[7]),
+        remboursement_colis: parseInt(r[8]) || null,
+        lor_dpmo: parseInt(r[9]) || null,
+        photo_pct: pct(r[10]),
+        contact_pct: pct(r[11]),
+        plainte_client: parseInt(r[12]) || null,
+        score_reussite: parseFloat(r[14]) || null,
+        score_remboursement: parseFloat(r[15]) || null,
+        score_lor: parseFloat(r[16]) || null,
+        score_photo: parseFloat(r[17]) || null,
+        score_contact: parseFloat(r[18]) || null,
+        score_plainte: parseFloat(r[19]) || null,
+        score_note: parseFloat(r[20]) || null,
+      }));
 
-      if (records.length === 0) throw new Error('Aucune donnée trouvée dans le fichier');
-
-      // Supprime l'ancienne semaine si elle existe
       await supabase.from('performance_semaines').delete().eq('semaine', semaine);
-
-      // Insère les nouvelles données
       const { error } = await supabase.from('performance_semaines').insert(records);
       if (error) throw error;
 
-      toast(`✓ ${records.length} chauffeurs importés pour ${semaine}`);
+      toast(`✓ ${records.length} chauffeurs importés pour la semaine ${semaine}`);
       document.getElementById('import-perf-card').style.display = 'none';
       ManagerPage.loadPerformance();
     } catch(e) {
