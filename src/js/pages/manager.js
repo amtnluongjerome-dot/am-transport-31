@@ -358,7 +358,7 @@ const ManagerPage = {
     ManagerPage.loadVehicules();
   },
 
-  // ── HISTORIQUE ──
+ // ── HISTORIQUE ──
 async loadHistorique() {
   const el = document.getElementById('panel-historique');
   el.innerHTML = '<p class="text-muted">Chargement...</p>';
@@ -370,12 +370,18 @@ async loadHistorique() {
       .limit(100);
 
     const plaques = [...new Set((hist||[]).map(h => h.plaque))].sort();
+    const chauffeurs = [...new Set((hist||[]).map(h => h.profiles?.full_name).filter(Boolean))].sort();
 
     el.innerHTML = `
     <div class="card">
       <div class="card-title">🕓 Historique des attributions camions
         <div class="card-actions">
-          <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique(this.value)">
+          <input type="date" class="form-input" id="hist-date" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
+          <select class="form-input" id="hist-chauffeur" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
+            <option value="all">Tous les chauffeurs</option>
+            ${chauffeurs.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
+          <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
             <option value="all">Tous les véhicules</option>
             ${plaques.map(p=>`<option value="${p}">${p}</option>`).join('')}
           </select>
@@ -395,7 +401,7 @@ async loadHistorique() {
             { url: t?.photo_camion_soir,   label: '🚛 Soir' },
             { url: t?.photo_mobilic_soir,  label: '📱 Soir' },
           ].filter(p => p.url);
-          return `<tr data-plate="${h.plaque}">
+          return `<tr data-plate="${h.plaque}" data-chauffeur="${h.profiles?.full_name || ''}" data-date="${h.date}">
             <td class="text-muted text-sm">${fmtDate(h.date)}</td>
             <td>${avatarHTML(h.profiles?.full_name,28)} ${h.profiles?.full_name}</td>
             <td>${plateBadge(h.plaque)}</td>
@@ -419,6 +425,19 @@ async loadHistorique() {
   } catch(e) {
     el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
   }
+},
+
+filterHistorique() {
+  const plate = document.getElementById('hist-filter')?.value || 'all';
+  const chauffeur = document.getElementById('hist-chauffeur')?.value || 'all';
+  const date = document.getElementById('hist-date')?.value || '';
+
+  document.querySelectorAll('#hist-tbody tr').forEach(row => {
+    const matchPlate = plate === 'all' || row.dataset.plate === plate;
+    const matchChauffeur = chauffeur === 'all' || row.dataset.chauffeur === chauffeur;
+    const matchDate = !date || row.dataset.date === date;
+    row.style.display = (matchPlate && matchChauffeur && matchDate) ? '' : 'none';
+  });
 },
 
   filterHistorique(plate) {
