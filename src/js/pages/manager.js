@@ -29,6 +29,7 @@ const ManagerPage = {
         <div class="sidebar-section-label">Données</div>
         <div class="sidebar-item" onclick="ManagerPage.nav('photos',this)">📷 Photos reçues</div>
         <div class="sidebar-item" onclick="ManagerPage.nav('km',this)">📈 Kilométrages</div>
+        <div class="sidebar-item" onclick="ManagerPage.nav('performance',this)">🏆 Performances</div>
         <div class="sidebar-section-label">Gestion</div>
         <div class="sidebar-item" onclick="ManagerPage.nav('admin',this)">⚙️ Administration</div>
       </div>
@@ -41,6 +42,7 @@ const ManagerPage = {
         <div class="panel" id="panel-telepeage"></div>
         <div class="panel" id="panel-photos"></div>
         <div class="panel" id="panel-km"></div>
+        <div class="panel" id="panel-performance"></div>
         <div class="panel" id="panel-admin"></div>
       </div>
     </div>`;
@@ -58,6 +60,7 @@ const ManagerPage = {
       telepeage:   ManagerPage.loadTelepeage,
       photos:      ManagerPage.loadPhotos,
       km:          ManagerPage.loadKm,
+      performance: ManagerPage.loadPerformance,
       admin:       ManagerPage.loadAdmin,
     };
     if (loaders[panelId]) loaders[panelId]();
@@ -448,8 +451,6 @@ const ManagerPage = {
         .select('*, vehicule_attributions(date, plaque, profiles(full_name))')
         .order('reference');
 
-      const { data: chauffeurs } = await supabase.from('profiles').select('id,full_name').eq('role','driver').order('full_name');
-
       el.innerHTML = `
       <div class="card">
         <div class="card-title">💳 Badges télépéage — état actuel</div>
@@ -640,6 +641,225 @@ const ManagerPage = {
       </div>`;
     } catch(e) {
       el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
+    }
+  },
+
+  // ── PERFORMANCE ──
+  async loadPerformance() {
+    const el = document.getElementById('panel-performance');
+    el.innerHTML = '<p class="text-muted">Chargement...</p>';
+    try {
+      const { data: semaines } = await supabase
+        .from('performance_semaines')
+        .select('semaine')
+        .order('semaine', { ascending: false });
+
+      const uniqueSemaines = [...new Set((semaines||[]).map(s => s.semaine))];
+      const derniereSemaine = uniqueSemaines[0] || '';
+
+      let data = [];
+      if (derniereSemaine) {
+        const { data: perf } = await supabase
+          .from('performance_semaines')
+          .select('*')
+          .eq('semaine', derniereSemaine)
+          .order('moyenne', { ascending: false });
+        data = perf || [];
+      }
+
+      const statutBadge = (s) => {
+        const map = {
+          'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;">⭐ Fantastic +</span>',
+          'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;">✅ Fantastic</span>',
+          'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;">👍 Great</span>',
+          'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;">⚠️ Fair</span>',
+          'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;">❌ Poor</span>',
+        };
+        return map[s] || `<span class="badge b-gray">${s}</span>`;
+      };
+
+      const scoreColor = (v) => {
+        if (v === null || v === undefined) return 'color:#9CA3AF';
+        if (v >= 95) return 'color:#1E7E34;font-weight:600';
+        if (v >= 80) return 'color:#92400E;font-weight:600';
+        return 'color:#B91C1C;font-weight:600';
+      };
+
+      el.innerHTML = `
+      <div class="card">
+        <div class="card-title">🏆 Performances chauffeurs
+          <div class="card-actions">
+            <select class="form-input" id="perf-semaine" style="width:auto;font-size:12px;" onchange="ManagerPage.changerSemainePerf(this.value)">
+              ${uniqueSemaines.map(s => `<option value="${s}" ${s===derniereSemaine?'selected':''}>${s}</option>`).join('')}
+            </select>
+            <button class="btn sm primary" onclick="ManagerPage.showImportPerf()">⬆ Importer Excel</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>#</th><th>Chauffeur</th><th>Statut</th><th>Moyenne</th>
+              <th>Livraison</th><th>Remboursement</th><th>LOR</th><th>Photo</th><th>Contact</th><th>Plainte</th><th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+          ${data.map((d, i) => `
+            <tr>
+              <td class="text-muted">${i+1}</td>
+              <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
+              <td>${statutBadge(d.statut)}</td>
+              <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
+              <td style="${scoreColor(d.score_reussite)}">${d.score_reussite ?? '—'}</td>
+              <td style="${scoreColor(d.score_remboursement)}">${d.score_remboursement ?? '—'}</td>
+              <td style="${scoreColor(d.score_lor)}">${d.score_lor ?? '—'}</td>
+              <td style="${scoreColor(d.score_photo)}">${d.score_photo ?? '—'}</td>
+              <td style="${scoreColor(d.score_contact)}">${d.score_contact ?? '—'}</td>
+              <td style="${scoreColor(d.score_plainte)}">${d.score_plainte ?? '—'}</td>
+              <td style="${scoreColor(d.score_note)}">${d.score_note ?? '—'}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="11" class="text-muted">Aucune donnée — importez un fichier Excel</td></tr>'}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div class="card" id="import-perf-card" style="display:none;">
+        <div class="card-title">⬆ Importer le scorecard Excel</div>
+        <p class="text-muted text-sm" style="margin-bottom:12px;">Sélectionnez votre fichier Excel hebdomadaire. Les données seront extraites et stockées automatiquement.</p>
+        <div class="grid-2">
+          <div class="form-row">
+            <label class="form-label">Semaine (ex: 2026-S23)</label>
+            <input class="form-input" type="text" id="perf-semaine-input" placeholder="2026-S23">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Fichier Excel (.xlsx)</label>
+            <input class="form-input" type="file" id="perf-file" accept=".xlsx,.xls">
+          </div>
+        </div>
+        <div class="flex-end">
+          <button class="btn" onclick="document.getElementById('import-perf-card').style.display='none'">Annuler</button>
+          <button class="btn primary" id="btn-import-perf" onclick="ManagerPage.importPerf()" style="margin-left:8px;">✓ Importer</button>
+        </div>
+      </div>`;
+    } catch(e) {
+      el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
+    }
+  },
+
+  showImportPerf() {
+    const card = document.getElementById('import-perf-card');
+    if (card) card.style.display = 'block';
+  },
+
+  async changerSemainePerf(semaine) {
+    const { data: perf } = await supabase
+      .from('performance_semaines')
+      .select('*')
+      .eq('semaine', semaine)
+      .order('moyenne', { ascending: false });
+
+    const statutBadge = (s) => {
+      const map = {
+        'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;">⭐ Fantastic +</span>',
+        'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;">✅ Fantastic</span>',
+        'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;">👍 Great</span>',
+        'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;">⚠️ Fair</span>',
+        'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;">❌ Poor</span>',
+      };
+      return map[s] || `<span class="badge b-gray">${s}</span>`;
+    };
+
+    const scoreColor = (v) => {
+      if (v === null || v === undefined) return 'color:#9CA3AF';
+      if (v >= 95) return 'color:#1E7E34;font-weight:600';
+      if (v >= 80) return 'color:#92400E;font-weight:600';
+      return 'color:#B91C1C;font-weight:600';
+    };
+
+    const tbody = document.querySelector('#panel-performance .tbl tbody');
+    if (tbody) {
+      tbody.innerHTML = (perf||[]).map((d, i) => `
+        <tr>
+          <td class="text-muted">${i+1}</td>
+          <td>${avatarHTML(d.nom_prenom, 28)} ${d.nom_prenom}</td>
+          <td>${statutBadge(d.statut)}</td>
+          <td><strong style="${scoreColor(d.moyenne)}">${d.moyenne ?? '—'}</strong></td>
+          <td style="${scoreColor(d.score_reussite)}">${d.score_reussite ?? '—'}</td>
+          <td style="${scoreColor(d.score_remboursement)}">${d.score_remboursement ?? '—'}</td>
+          <td style="${scoreColor(d.score_lor)}">${d.score_lor ?? '—'}</td>
+          <td style="${scoreColor(d.score_photo)}">${d.score_photo ?? '—'}</td>
+          <td style="${scoreColor(d.score_contact)}">${d.score_contact ?? '—'}</td>
+          <td style="${scoreColor(d.score_plainte)}">${d.score_plainte ?? '—'}</td>
+          <td style="${scoreColor(d.score_note)}">${d.score_note ?? '—'}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="11" class="text-muted">Aucune donnée</td></tr>';
+    }
+  },
+
+  async importPerf() {
+    const semaine = document.getElementById('perf-semaine-input').value.trim();
+    const file = document.getElementById('perf-file').files[0];
+    if (!semaine || !file) return toast('Merci de remplir tous les champs.');
+
+    const btn = document.getElementById('btn-import-perf');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Import...';
+
+    try {
+      const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+      // Trouve la ligne header (contient "Nom Prenom")
+      let headerRow = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].some(c => String(c||'').includes('Nom Prenom') || String(c||'').includes('NOM'))) {
+          headerRow = i;
+          break;
+        }
+      }
+      if (headerRow === -1) throw new Error('Format de fichier non reconnu');
+
+      const headers = rows[headerRow];
+      const dataRows = rows.slice(headerRow + 1).filter(r => r[1]); // colonne Nom non vide
+
+      const col = (name) => headers.findIndex(h => String(h||'').toUpperCase().includes(name.toUpperCase()));
+
+      const records = dataRows.map(r => ({
+        semaine,
+        nom_prenom: r[col('NOM')] || r[1],
+        statut: r[col('STATUT')] || r[2],
+        moyenne: parseFloat(r[col('MOYENNE')] || r[3]) || null,
+        transporter_id: r[col('TRANSPORTER')] || r[4],
+        colis_livres: parseInt(r[col('COLIS')]) || null,
+        score_reussite: parseFloat(r[headers.lastIndexOf(headers.find(h => String(h||'').includes('REUSSITE')))]) || null,
+        score_remboursement: parseFloat(r[col('REMBOURSEMENT')]) || null,
+        score_lor: parseFloat(r[col('LOR')]) || null,
+        score_photo: parseFloat(r[col('PHOTO')]) || null,
+        score_contact: parseFloat(r[col('CONTACT')]) || null,
+        score_plainte: parseFloat(r[col('PLAINTE')]) || null,
+        score_note: parseFloat(r[col('NOTE')]) || null,
+      })).filter(r => r.nom_prenom);
+
+      if (records.length === 0) throw new Error('Aucune donnée trouvée dans le fichier');
+
+      // Supprime l'ancienne semaine si elle existe
+      await supabase.from('performance_semaines').delete().eq('semaine', semaine);
+
+      // Insère les nouvelles données
+      const { error } = await supabase.from('performance_semaines').insert(records);
+      if (error) throw error;
+
+      toast(`✓ ${records.length} chauffeurs importés pour ${semaine}`);
+      document.getElementById('import-perf-card').style.display = 'none';
+      ManagerPage.loadPerformance();
+    } catch(e) {
+      toast('Erreur import : ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '✓ Importer';
     }
   },
 
