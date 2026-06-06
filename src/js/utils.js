@@ -56,4 +56,34 @@ function statusBadge(status) {
     'absent':     '<span class="badge b-red">Absent</span>',
     'non_cloture':'<span class="badge b-amber">Non clôturé</span>',
     'disponible': '<span class="badge b-gray">Disponible</span>',
-    'en_service': '<span cl
+    'en_service': '<span class="badge b-green">En service</span>',
+  };
+  return map[status] || `<span class="badge b-gray">${status}</span>`;
+}
+function plateBadge(plate) {
+  if (!plate) return '<span class="badge b-gray">—</span>';
+  return `<span class="badge b-purple mono">${plate}</span>`;
+}
+function tpBadge(ref) {
+  if (!ref) return '<span class="badge b-gray">—</span>';
+  return `<span class="badge b-teal mono">${ref}</span>`;
+}
+function routeBadge(route) {
+  if (!route) return '<span class="badge b-gray">—</span>';
+  const colors = ['b-green','b-blue','b-amber','b-purple','b-teal'];
+  const idx = (route || '').charCodeAt(route.length - 1) % colors.length;
+  return `<span class="badge ${colors[idx]}">${route}</span>`;
+}
+async function uploadPhoto(file, folder) {
+  const ext = file.name.split('.').pop();
+  const name = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage.from('photos').upload(name, file);
+  if (error) throw error;
+  const { data: signed } = await supabase.storage
+    .from('photos')
+    .createSignedUrl(name, 60 * 60 * 24 * 365);
+  return signed.signedUrl;
+}
+function confirmAction(msg) {
+  return window.confirm(msg);
+}
