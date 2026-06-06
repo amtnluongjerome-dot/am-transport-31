@@ -93,7 +93,125 @@ const DriverPage = {
         ${DriverPage.renderCloture(tournee)}
       </div>
 
+      <div id="driver-perf-section"></div>
+
     </div>`;
+
+    // Charge les performances
+    await DriverPage.loadPerformance(p.full_name);
+  },
+
+  async loadPerformance(fullName) {
+    const el = document.getElementById('driver-perf-section');
+    if (!el) return;
+
+    try {
+      // Dernière semaine disponible
+      const { data: semaines } = await supabase
+        .from('performance_semaines')
+        .select('semaine')
+        .order('semaine', { ascending: false })
+        .limit(1);
+
+      if (!semaines || semaines.length === 0) return;
+
+      const derniereSemaine = semaines[0].semaine;
+
+      // Cherche le chauffeur par nom
+      const { data: perf } = await supabase
+        .from('performance_semaines')
+        .select('*')
+        .eq('semaine', derniereSemaine)
+        .ilike('nom_prenom', `%${fullName.split(' ')[0]}%`)
+        .maybeSingle();
+
+      if (!perf) {
+        el.innerHTML = `
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">🏆 Mes performances — ${derniereSemaine}</div>
+          <p class="text-muted text-sm">Aucune donnée de performance disponible pour cette semaine.</p>
+        </div>`;
+        return;
+      }
+
+      const statutBadge = (s) => {
+        const map = {
+          'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;font-size:14px;padding:6px 12px;">⭐ Fantastic +</span>',
+          'FANTASTIC':   '<span class="badge" style="background:#E8F0FE;color:#1A56DB;font-size:14px;padding:6px 12px;">✅ Fantastic</span>',
+          'GREAT':       '<span class="badge" style="background:#FEF3C7;color:#92400E;font-size:14px;padding:6px 12px;">👍 Great</span>',
+          'FAIR':        '<span class="badge" style="background:#FEE2E2;color:#B91C1C;font-size:14px;padding:6px 12px;">⚠️ Fair</span>',
+          'POOR':        '<span class="badge" style="background:#F3F4F6;color:#6B7280;font-size:14px;padding:6px 12px;">❌ Poor</span>',
+        };
+        return map[s] || `<span class="badge b-gray">${s}</span>`;
+      };
+
+      const pctColor = (v) => {
+        if (v === null || v === undefined) return 'color:#9CA3AF';
+        const n = parseFloat(v) * 100;
+        if (n >= 99) return 'color:#1E7E34;font-weight:700';
+        if (n >= 97) return 'color:#92400E;font-weight:700';
+        return 'color:#B91C1C;font-weight:700';
+      };
+
+      const numColor = (v) => {
+        if (v === null || v === undefined) return 'color:#9CA3AF';
+        return parseFloat(v) === 0 ? 'color:#1E7E34;font-weight:700' : 'color:#B91C1C;font-weight:700';
+      };
+
+      const fmtPct = (v) => v !== null && v !== undefined ? (Math.round(parseFloat(v) * 10000) / 100).toFixed(2) + '%' : '—';
+
+      el.innerHTML = `
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">🏆 Mes performances — ${derniereSemaine}</div>
+
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+          <div style="font-size:32px;font-weight:800;color:#1a1a1a;">#${perf.classement}<span style="font-size:16px;color:#9CA3AF;font-weight:400;">/${perf.total_chauffeurs}</span></div>
+          ${statutBadge(perf.statut)}
+          <div style="margin-left:auto;text-align:right;">
+            <div style="font-size:11px;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px;">Score moyen</div>
+            <div style="font-size:28px;font-weight:700;color:#1a1a1a;">${perf.moyenne ? Math.round(perf.moyenne * 100) / 100 : '—'}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📦 Colis livrés</div>
+            <div style="font-size:20px;font-weight:700;">${perf.colis_livres ?? '—'}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">✅ Réussite livraison</div>
+            <div style="font-size:20px;font-weight:700;${pctColor(perf.reussite_livraison_pct)}">${fmtPct(perf.reussite_livraison_pct)}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">💸 Remboursement</div>
+            <div style="font-size:20px;font-weight:700;${numColor(perf.remboursement_colis)}">${perf.remboursement_colis ?? '—'}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">🛣️ LOR DPMO</div>
+            <div style="font-size:20px;font-weight:700;${numColor(perf.lor_dpmo)}">${perf.lor_dpmo ?? '—'}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📸 Photo</div>
+            <div style="font-size:20px;font-weight:700;${pctColor(perf.photo_pct)}">${fmtPct(perf.photo_pct)}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📞 Contact</div>
+            <div style="font-size:20px;font-weight:700;${pctColor(perf.contact_pct)}">${fmtPct(perf.contact_pct)}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">⚠️ Plainte client</div>
+            <div style="font-size:20px;font-weight:700;${numColor(perf.plainte_client)}">${perf.plainte_client ?? '—'}</div>
+          </div>
+          <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">⭐ Note client</div>
+            <div style="font-size:20px;font-weight:700;">${perf.note_client ?? '—'}</div>
+          </div>
+        </div>
+      </div>`;
+
+    } catch(e) {
+      console.error('Erreur performances:', e);
+    }
   },
 
   getStatutBadge(statut) {
