@@ -122,8 +122,7 @@ const DriverPage = {
         .from('performance_semaines')
         .select('*')
         .eq('semaine', derniereSemaine)
-        .ilike('nom_prenom', `%${fullName.split(' ')[0]}%`)
-        .maybeSingle();
+.ilike('nom_prenom', `%${fullName}%`)        .maybeSingle();
 
       if (!perf) {
         el.innerHTML = `
