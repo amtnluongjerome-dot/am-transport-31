@@ -69,7 +69,6 @@ const ManagerPage = {
     el.innerHTML = '<p class="text-muted">Chargement...</p>';
     try {
       const todayStr = today();
-
       const { data: tournees } = await supabase
         .from('tournees').select('*, profiles(full_name), vehicule_attributions(plaque, telepeage_badges(reference))')
         .eq('date', todayStr);
@@ -358,91 +357,84 @@ const ManagerPage = {
     ManagerPage.loadVehicules();
   },
 
- // ── HISTORIQUE ──
-async loadHistorique() {
-  const el = document.getElementById('panel-historique');
-  el.innerHTML = '<p class="text-muted">Chargement...</p>';
-  try {
-    const { data: hist } = await supabase
-      .from('vehicule_attributions')
-      .select('*, profiles(full_name), telepeage_badges(reference), tournees(km_depart,km_retour,statut,photo_camion_matin,photo_mobilic_matin,photo_camion_soir,photo_mobilic_soir)')
-      .order('date', { ascending: false })
-      .limit(100);
+  // ── HISTORIQUE ──
+  async loadHistorique() {
+    const el = document.getElementById('panel-historique');
+    el.innerHTML = '<p class="text-muted">Chargement...</p>';
+    try {
+      const { data: hist } = await supabase
+        .from('vehicule_attributions')
+        .select('*, profiles(full_name), telepeage_badges(reference), tournees(km_depart,km_retour,statut,photo_camion_matin,photo_mobilic_matin,photo_camion_soir,photo_mobilic_soir)')
+        .order('date', { ascending: false })
+        .limit(100);
 
-    const plaques = [...new Set((hist||[]).map(h => h.plaque))].sort();
-    const chauffeurs = [...new Set((hist||[]).map(h => h.profiles?.full_name).filter(Boolean))].sort();
+      const plaques = [...new Set((hist||[]).map(h => h.plaque))].sort();
+      const chauffeurs = [...new Set((hist||[]).map(h => h.profiles?.full_name).filter(Boolean))].sort();
 
-    el.innerHTML = `
-    <div class="card">
-      <div class="card-title">🕓 Historique des attributions camions
-        <div class="card-actions">
-          <input type="date" class="form-input" id="hist-date" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
-          <select class="form-input" id="hist-chauffeur" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
-            <option value="all">Tous les chauffeurs</option>
-            ${chauffeurs.map(c=>`<option value="${c}">${c}</option>`).join('')}
-          </select>
-          <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
-            <option value="all">Tous les véhicules</option>
-            ${plaques.map(p=>`<option value="${p}">${p}</option>`).join('')}
-          </select>
-          <button class="btn sm primary" onclick="ManagerPage.exportHistorique()">⬇ Export</button>
+      el.innerHTML = `
+      <div class="card">
+        <div class="card-title">🕓 Historique des attributions camions
+          <div class="card-actions">
+            <input type="date" class="form-input" id="hist-date" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
+            <select class="form-input" id="hist-chauffeur" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
+              <option value="all">Tous les chauffeurs</option>
+              ${chauffeurs.map(c=>`<option value="${c}">${c}</option>`).join('')}
+            </select>
+            <select class="form-input" id="hist-filter" style="width:auto;font-size:12px;" onchange="ManagerPage.filterHistorique()">
+              <option value="all">Tous les véhicules</option>
+              ${plaques.map(p=>`<option value="${p}">${p}</option>`).join('')}
+            </select>
+            <button class="btn sm primary" onclick="ManagerPage.exportHistorique()">⬇ Export</button>
+          </div>
         </div>
-      </div>
-      <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th>Date</th><th>Chauffeur</th><th>Plaque</th><th>Télépéage</th><th>Km départ</th><th>Km retour</th><th>Total</th><th>Statut</th><th>Photos</th></tr></thead>
-        <tbody id="hist-tbody">
-        ${(hist||[]).map(h => {
-          const t = Array.isArray(h.tournees) ? h.tournees[0] : h.tournees;
-          const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
-          const photos = [
-            { url: t?.photo_camion_matin,  label: '🚛 Matin' },
-            { url: t?.photo_mobilic_matin, label: '📱 Matin' },
-            { url: t?.photo_camion_soir,   label: '🚛 Soir' },
-            { url: t?.photo_mobilic_soir,  label: '📱 Soir' },
-          ].filter(p => p.url);
-          return `<tr data-plate="${h.plaque}" data-chauffeur="${h.profiles?.full_name || ''}" data-date="${h.date}">
-            <td class="text-muted text-sm">${fmtDate(h.date)}</td>
-            <td>${avatarHTML(h.profiles?.full_name,28)} ${h.profiles?.full_name}</td>
-            <td>${plateBadge(h.plaque)}</td>
-            <td>${tpBadge(h.telepeage_badges?.reference)}</td>
-            <td>${t?.km_depart ? fmtNum(t.km_depart) : '—'}</td>
-            <td>${t?.km_retour ? fmtNum(t.km_retour) : '—'}</td>
-            <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
-            <td>${statusBadge(t?.statut || 'absent')}</td>
-            <td>
-              ${photos.length > 0
-                ? photos.map(p => `<a href="${p.url}" target="_blank"><button class="btn sm" style="margin:2px;">${p.label}</button></a>`).join('')
-                : '<span class="text-muted">—</span>'
-              }
-            </td>
-          </tr>`;
-        }).join('') || '<tr><td colspan="9" class="text-muted">Aucun historique</td></tr>'}
-        </tbody>
-      </table>
-      </div>
-    </div>`;
-  } catch(e) {
-    el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
-  }
-},
+        <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Date</th><th>Chauffeur</th><th>Plaque</th><th>Télépéage</th><th>Km départ</th><th>Km retour</th><th>Total</th><th>Statut</th><th>Photos</th></tr></thead>
+          <tbody id="hist-tbody">
+          ${(hist||[]).map(h => {
+            const t = Array.isArray(h.tournees) ? h.tournees[0] : h.tournees;
+            const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
+            const photos = [
+              { url: t?.photo_camion_matin,  label: '🚛 Matin' },
+              { url: t?.photo_mobilic_matin, label: '📱 Matin' },
+              { url: t?.photo_camion_soir,   label: '🚛 Soir' },
+              { url: t?.photo_mobilic_soir,  label: '📱 Soir' },
+            ].filter(p => p.url);
+            return `<tr data-plate="${h.plaque}" data-chauffeur="${h.profiles?.full_name || ''}" data-date="${h.date}">
+              <td class="text-muted text-sm">${fmtDate(h.date)}</td>
+              <td>${avatarHTML(h.profiles?.full_name,28)} ${h.profiles?.full_name}</td>
+              <td>${plateBadge(h.plaque)}</td>
+              <td>${tpBadge(h.telepeage_badges?.reference)}</td>
+              <td>${t?.km_depart ? fmtNum(t.km_depart) : '—'}</td>
+              <td>${t?.km_retour ? fmtNum(t.km_retour) : '—'}</td>
+              <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
+              <td>${statusBadge(t?.statut || 'absent')}</td>
+              <td>
+                ${photos.length > 0
+                  ? photos.map(p => `<a href="${p.url}" target="_blank"><button class="btn sm" style="margin:2px;">${p.label}</button></a>`).join('')
+                  : '<span class="text-muted">—</span>'
+                }
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="9" class="text-muted">Aucun historique</td></tr>'}
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+    } catch(e) {
+      el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
+    }
+  },
 
-filterHistorique() {
-  const plate = document.getElementById('hist-filter')?.value || 'all';
-  const chauffeur = document.getElementById('hist-chauffeur')?.value || 'all';
-  const date = document.getElementById('hist-date')?.value || '';
-
-  document.querySelectorAll('#hist-tbody tr').forEach(row => {
-    const matchPlate = plate === 'all' || row.dataset.plate === plate;
-    const matchChauffeur = chauffeur === 'all' || row.dataset.chauffeur === chauffeur;
-    const matchDate = !date || row.dataset.date === date;
-    row.style.display = (matchPlate && matchChauffeur && matchDate) ? '' : 'none';
-  });
-},
-
-  filterHistorique(plate) {
+  filterHistorique() {
+    const plate = document.getElementById('hist-filter')?.value || 'all';
+    const chauffeur = document.getElementById('hist-chauffeur')?.value || 'all';
+    const date = document.getElementById('hist-date')?.value || '';
     document.querySelectorAll('#hist-tbody tr').forEach(row => {
-      row.style.display = (plate === 'all' || row.dataset.plate === plate) ? '' : 'none';
+      const matchPlate = plate === 'all' || row.dataset.plate === plate;
+      const matchChauffeur = chauffeur === 'all' || row.dataset.chauffeur === chauffeur;
+      const matchDate = !date || row.dataset.date === date;
+      row.style.display = (matchPlate && matchChauffeur && matchDate) ? '' : 'none';
     });
   },
 
