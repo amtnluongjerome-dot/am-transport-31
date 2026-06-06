@@ -70,7 +70,6 @@ const ManagerPage = {
     try {
       const todayStr = today();
 
-      // Récupère les tournées du jour
       const { data: tournees } = await supabase
         .from('tournees').select('*, profiles(full_name), vehicule_attributions(plaque, telepeage_badges(reference))')
         .eq('date', todayStr);
@@ -78,7 +77,6 @@ const ManagerPage = {
       const total = tournees?.length || 0;
       const clotures = tournees?.filter(t => t.statut === 'cloture').length || 0;
       const photos_ok = tournees?.filter(t => t.photo_camion_matin && t.photo_mobilic_matin).length || 0;
-      const alertes = tournees?.filter(t => t.statut !== 'cloture' && t.statut !== null).length || 0;
 
       el.innerHTML = `
       <div class="stats-row">
@@ -629,13 +627,13 @@ const ManagerPage = {
     el.innerHTML = `
     <div class="card">
       <div class="card-title">👤 Créer un compte chauffeur</div>
-      <p class="text-muted text-sm" style="margin-bottom:14px;">Le chauffeur recevra un email pour définir son mot de passe.</p>
+      <p class="text-muted text-sm" style="margin-bottom:14px;">Le compte sera créé immédiatement avec le mot de passe temporaire <strong>ChangeMe2024!</strong></p>
       <div class="grid-2">
         <div class="form-row"><label class="form-label">Prénom Nom</label><input class="form-input" type="text" id="adm-name" placeholder="Jean Dupont"></div>
         <div class="form-row"><label class="form-label">Email</label><input class="form-input" type="email" id="adm-email" placeholder="jean.dupont@transport31.fr"></div>
       </div>
       <div class="flex-end">
-        <button class="btn primary" onclick="ManagerPage.createDriver()">➕ Créer le compte</button>
+        <button class="btn primary" id="btn-create-driver" onclick="ManagerPage.createDriver()">➕ Créer le compte</button>
       </div>
     </div>
     <div class="card">
@@ -661,9 +659,26 @@ const ManagerPage = {
     const name  = document.getElementById('adm-name').value.trim();
     const email = document.getElementById('adm-email').value.trim();
     if (!name || !email) return toast('Merci de remplir tous les champs.');
-    // Crée l'utilisateur via Supabase Auth (nécessite la fonction Edge ou service_role)
-    // En production : appel à une Edge Function Supabase pour créer le compte
-    toast('Fonctionnalité disponible avec la clé service_role Supabase (voir guide)');
+
+    const btn = document.getElementById('btn-create-driver');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Création...';
+
+    try {
+      const { error } = await supabase.functions.invoke('create-driver', {
+        body: { full_name: name, email }
+      });
+      if (error) throw error;
+      toast('Compte créé ✓ — mot de passe temporaire : ChangeMe2024!');
+      document.getElementById('adm-name').value = '';
+      document.getElementById('adm-email').value = '';
+      ManagerPage.loadAdmin();
+    } catch(e) {
+      toast('Erreur : ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '➕ Créer le compte';
+    }
   },
 
   // ── EXPORTS ──
