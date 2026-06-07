@@ -1151,15 +1151,16 @@ const ManagerPage = {
       <div class="card-title">👥 Chauffeurs existants</div>
       <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th>Chauffeur</th><th>Email</th><th>Créé le</th></tr></thead>
+        <thead><tr><th>Chauffeur</th><th>Email</th><th>Créé le</th><th></th></tr></thead>
         <tbody>
         ${(drivers||[]).map(d=>`
           <tr>
             <td>${avatarHTML(d.full_name,28)} ${d.full_name}</td>
             <td class="text-muted" style="font-size:11px;">${d.email || '—'}</td>
             <td class="text-muted text-sm">${fmtDate(d.created_at)}</td>
+            <td><button class="btn sm" style="color:#B91C1C;border-color:#FECACA;" onclick="ManagerPage.deleteDriver('${d.id}','${d.full_name}')">🗑️</button></td>
           </tr>
-        `).join('') || '<tr><td colspan="3" class="text-muted">Aucun chauffeur</td></tr>'}
+        `).join('') || '<tr><td colspan="4" class="text-muted">Aucun chauffeur</td></tr>'}
         </tbody>
       </table>
       </div>
@@ -1199,6 +1200,32 @@ const ManagerPage = {
     } finally {
       btn.disabled = false;
       btn.innerHTML = '➕ Créer';
+    }
+  },
+
+  async deleteDriver(id, name) {
+    if (!confirm(`Supprimer le compte de ${name} ?
+
+Ses données (tournées, planning, performances) seront conservées.`)) return;
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session.access_token;
+      const response = await fetch(
+        'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/delete-driver',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ user_id: id })
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erreur inconnue');
+      }
+      toast(`Compte de ${name} supprimé ✓`);
+      ManagerPage.loadAdmin();
+    } catch(e) {
+      toast('Erreur : ' + e.message);
     }
   },
 
