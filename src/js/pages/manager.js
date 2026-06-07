@@ -53,16 +53,46 @@ const ManagerPage = {
 
     <!-- Popup planning -->
     <div id="planning-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
-      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto;">
         <div style="font-size:15px;font-weight:700;margin-bottom:4px;" id="popup-title">Planning</div>
-        <div style="font-size:12px;color:#9CA3AF;margin-bottom:16px;" id="popup-subtitle"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-          <button onclick="ManagerPage.savePlanningStat('travail')" style="padding:14px;border-radius:12px;border:2px solid #D1FAE5;background:#F0FDF4;color:#166534;font-weight:700;font-size:14px;cursor:pointer;">🟢 Travail</button>
-          <button onclick="ManagerPage.savePlanningStat('repos')" style="padding:14px;border-radius:12px;border:2px solid #E5E7EB;background:#F9FAFB;color:#6B7280;font-weight:700;font-size:14px;cursor:pointer;">⚪ Repos</button>
-          <button onclick="ManagerPage.savePlanningStat('cut')" style="padding:14px;border-radius:12px;border:2px solid #FEE2E2;background:#FFF5F5;color:#991B1B;font-weight:700;font-size:14px;cursor:pointer;">✂️ Cut</button>
-          <button onclick="ManagerPage.savePlanningStat('mad')" style="padding:14px;border-radius:12px;border:2px solid #DBEAFE;background:#EFF6FF;color:#1E40AF;font-weight:700;font-size:14px;cursor:pointer;">🔵 MAD</button>
+        <div style="font-size:12px;color:#9CA3AF;margin-bottom:14px;" id="popup-subtitle"></div>
+
+        <!-- Statuts principaux -->
+        <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Présence</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <button onclick="ManagerPage.selectStatut('travail')"   id="btn-stat-travail"   class="popup-stat-btn" style="background:#F0FDF4;border:2px solid #D1FAE5;color:#166534;">🟢 Travail</button>
+          <button onclick="ManagerPage.selectStatut('repos')"     id="btn-stat-repos"     class="popup-stat-btn" style="background:#F9FAFB;border:2px solid #E5E7EB;color:#6B7280;">⚪ Repos</button>
+          <button onclick="ManagerPage.selectStatut('cut')"       id="btn-stat-cut"       class="popup-stat-btn" style="background:#FFF5F5;border:2px solid #FEE2E2;color:#991B1B;">✂️ Cut</button>
+          <button onclick="ManagerPage.selectStatut('mad')"       id="btn-stat-mad"       class="popup-stat-btn" style="background:#EFF6FF;border:2px solid #DBEAFE;color:#1E40AF;">🔵 MAD</button>
         </div>
-        <button onclick="ManagerPage.closePlanningPopup()" style="width:100%;padding:10px;border-radius:10px;border:1px solid #E5E7EB;background:#fff;color:#6B7280;cursor:pointer;font-size:13px;">Annuler</button>
+
+        <!-- Statuts absence/RH -->
+        <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Absence / RH</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <button onclick="ManagerPage.selectStatut('absent')"        id="btn-stat-absent"        class="popup-stat-btn" style="background:#FFF7ED;border:2px solid #FED7AA;color:#92400E;">🚫 Absent</button>
+          <button onclick="ManagerPage.selectStatut('mis_a_pied')"    id="btn-stat-mis_a_pied"    class="popup-stat-btn" style="background:#FEF2F2;border:2px solid #FECACA;color:#7F1D1D;">⛔ Mis à pied</button>
+          <button onclick="ManagerPage.selectStatut('arret_travail')" id="btn-stat-arret_travail" class="popup-stat-btn" style="background:#F5F3FF;border:2px solid #DDD6FE;color:#4C1D95;">🏥 Arrêt travail</button>
+          <button onclick="ManagerPage.selectStatut('refus')"         id="btn-stat-refus"         class="popup-stat-btn" style="background:#FFF1F2;border:2px solid #FFE4E6;color:#881337;">🙅 Refus</button>
+        </div>
+
+        <!-- Statuts formation/terrain -->
+        <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Formation / Terrain</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+          <button onclick="ManagerPage.selectStatut('ride_along')" id="btn-stat-ride_along" class="popup-stat-btn" style="background:#ECFDF5;border:2px solid #A7F3D0;color:#065F46;">🚗 Ride Along</button>
+          <button onclick="ManagerPage.selectStatut('formation')"  id="btn-stat-formation"  class="popup-stat-btn" style="background:#FFFBEB;border:2px solid #FDE68A;color:#78350F;">📚 Formation</button>
+        </div>
+
+        <!-- Heures optionnelles -->
+        <div id="popup-heures-row" style="display:none;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Heures effectuées (optionnel)</div>
+          <input type="number" id="popup-heures" min="0" max="24" step="0.5" placeholder="Ex: 4.5"
+            style="width:100%;padding:8px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button onclick="ManagerPage.closePlanningPopup()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #E5E7EB;background:#fff;color:#6B7280;cursor:pointer;font-size:13px;">Annuler</button>
+          <button onclick="ManagerPage.savePlanningStat()" id="btn-popup-save" style="flex:1;padding:10px;border-radius:10px;border:none;background:#E5E7EB;color:#9CA3AF;font-size:13px;font-weight:700;cursor:not-allowed;" disabled>✓ Valider</button>
+        </div>
       </div>
     </div>
 
@@ -97,6 +127,11 @@ const ManagerPage = {
         </div>
       </div>
     </div>`;
+
+    // Style boutons statut popup
+    const style = document.createElement('style');
+    style.textContent = `.popup-stat-btn{padding:11px 6px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;transition:all .15s;text-align:center;} .popup-stat-btn.selected{box-shadow:0 0 0 3px #374151;transform:scale(1.03);}`;
+    document.head.appendChild(style);
 
     await ManagerPage.loadDashboard();
   },
@@ -231,6 +266,20 @@ const ManagerPage = {
   // ── PLANNING ──
   _planningWeekOffset: 0,
 
+  // Config des statuts planning
+  _statutConfig: {
+    travail:      { icon: '🟢', label: 'Travail',      bg: '#D1FAE5', color: '#166534', border: '#A7F3D0' },
+    repos:        { icon: '⚪', label: 'Repos',        bg: '#F3F4F6', color: '#6B7280', border: '#E5E7EB' },
+    cut:          { icon: '✂️', label: 'Cut',          bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+    mad:          { icon: '🔵', label: 'MAD',          bg: '#DBEAFE', color: '#1E40AF', border: '#BFDBFE' },
+    absent:       { icon: '🚫', label: 'Absent',       bg: '#FFF7ED', color: '#92400E', border: '#FED7AA' },
+    mis_a_pied:   { icon: '⛔', label: 'Mis à pied',  bg: '#FEF2F2', color: '#7F1D1D', border: '#FECACA' },
+    arret_travail:{ icon: '🏥', label: 'Arrêt',        bg: '#F5F3FF', color: '#4C1D95', border: '#DDD6FE' },
+    refus:        { icon: '🙅', label: 'Refus',        bg: '#FFF1F2', color: '#881337', border: '#FFE4E6' },
+    ride_along:   { icon: '🚗', label: 'Ride Along',   bg: '#ECFDF5', color: '#065F46', border: '#A7F3D0' },
+    formation:    { icon: '📚', label: 'Formation',    bg: '#FFFBEB', color: '#78350F', border: '#FDE68A' },
+  },
+
   async loadPlanning() {
     const el = document.getElementById('panel-planning');
     el.innerHTML = '<p class="text-muted">Chargement...</p>';
@@ -263,27 +312,22 @@ const ManagerPage = {
       const forecastMap = {};
       (forecasts||[]).forEach(f => { forecastMap[f.date] = f; });
 
+      const cfg = ManagerPage._statutConfig;
+
       const countByDay = {};
       days.forEach(d => {
         const entries = (planning||[]).filter(p => p.date === d.date);
-        countByDay[d.date] = {
-          travail: entries.filter(p => p.statut === 'travail').length,
-          mad: entries.filter(p => p.statut === 'mad').length,
-          forecast: forecastMap[d.date]?.forecast || 0,
-        };
+        const counts = { forecast: forecastMap[d.date]?.forecast || 0 };
+        Object.keys(cfg).forEach(s => { counts[s] = entries.filter(p => p.statut === s).length; });
+        countByDay[d.date] = counts;
       });
 
       const statutCell = (entry) => {
         if (!entry) return `<div style="width:100%;height:36px;border-radius:8px;background:#F3F4F6;border:2px dashed #E5E7EB;cursor:pointer;"></div>`;
-        const map = {
-          'travail': 'background:#D1FAE5;color:#166534;border:2px solid #A7F3D0;',
-          'repos':   'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;',
-          'cut':     'background:#FEE2E2;color:#991B1B;border:2px solid #FECACA;',
-          'mad':     'background:#DBEAFE;color:#1E40AF;border:2px solid #BFDBFE;',
-        };
-        const icons = { travail:'🟢', repos:'⚪', cut:'✂️', mad:'🔵' };
-        const style = map[entry.statut] || 'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;';
-        return `<div style="width:100%;height:36px;border-radius:8px;${style}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;">${icons[entry.statut]||''}</div>`;
+        const c = cfg[entry.statut];
+        if (!c) return `<div style="width:100%;height:36px;border-radius:8px;background:#F3F4F6;border:2px solid #E5E7EB;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;">${entry.statut}</div>`;
+        const heuresLabel = entry.heures ? `<span style="font-size:9px;opacity:.8;">${entry.heures}h</span>` : '';
+        return `<div style="width:100%;height:36px;border-radius:8px;background:${c.bg};color:${c.color};border:2px solid ${c.border};display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;gap:1px;">${c.icon}${heuresLabel}</div>`;
       };
 
       const totalTravail  = days.reduce((s, d) => s + countByDay[d.date].travail, 0);
@@ -365,6 +409,25 @@ const ManagerPage = {
               }).join('')}
               <td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:#1E40AF;">${totalMad}</td>
             </tr>
+            <!-- ABSENCES résumé -->
+            ${(() => {
+              const absStatuts = ['absent','mis_a_pied','arret_travail','refus','ride_along','formation'];
+              const hasAny = days.some(d => absStatuts.some(s => countByDay[d.date][s] > 0));
+              if (!hasAny) return '';
+              return absStatuts.map(s => {
+                const c = cfg[s];
+                const total = days.reduce((sum, d) => sum + (countByDay[d.date][s] || 0), 0);
+                if (total === 0) return '';
+                return `<tr style="background:${c.bg};">
+                  <td style="padding:5px 8px;font-size:11px;font-weight:700;color:${c.color};">${c.icon} ${c.label}</td>
+                  ${days.map(d => {
+                    const count = countByDay[d.date][s] || 0;
+                    return `<td style="padding:5px 3px;text-align:center;font-size:12px;font-weight:700;color:${count > 0 ? c.color : '#9CA3AF'};">${count || '—'}</td>`;
+                  }).join('')}
+                  <td style="padding:5px 3px;text-align:center;font-size:12px;font-weight:700;color:${c.color};">${total}</td>
+                </tr>`;
+              }).join('');
+            })()}
             <!-- Séparateur -->
             <tr><td colspan="9" style="height:8px;background:#F9FAFB;"></td></tr>
             <!-- Chauffeurs -->
@@ -407,23 +470,75 @@ const ManagerPage = {
   openPlanningPopup(driverId, driverName, date, dateLabel) {
     ManagerPage._popupDriverId = driverId;
     ManagerPage._popupDate = date;
+    ManagerPage._selectedStatut = null;
+
     const popup = document.getElementById('planning-popup');
     document.getElementById('popup-title').textContent = driverName;
     document.getElementById('popup-subtitle').textContent = dateLabel;
+
+    // Reset boutons
+    document.querySelectorAll('.popup-stat-btn').forEach(b => b.classList.remove('selected'));
+
+    // Reset heures
+    const heuresRow = document.getElementById('popup-heures-row');
+    heuresRow.style.display = 'none';
+    document.getElementById('popup-heures').value = '';
+
+    // Reset bouton valider
+    const btnSave = document.getElementById('btn-popup-save');
+    btnSave.disabled = true;
+    btnSave.style.background = '#E5E7EB';
+    btnSave.style.color = '#9CA3AF';
+    btnSave.style.cursor = 'not-allowed';
+
+    // Pré-sélectionner le statut existant si dispo
+    const existingStatut = ManagerPage._existingStatut;
+    if (existingStatut) {
+      ManagerPage.selectStatut(existingStatut);
+    }
+
     popup.style.display = 'flex';
+  },
+
+  selectStatut(statut) {
+    ManagerPage._selectedStatut = statut;
+
+    // Highlight bouton sélectionné
+    document.querySelectorAll('.popup-stat-btn').forEach(b => b.classList.remove('selected'));
+    const btn = document.getElementById('btn-stat-' + statut);
+    if (btn) btn.classList.add('selected');
+
+    // Afficher champ heures si statut partiel (tout sauf repos)
+    const heuresRow = document.getElementById('popup-heures-row');
+    heuresRow.style.display = (statut !== 'repos') ? 'block' : 'none';
+
+    // Activer bouton valider
+    const btnSave = document.getElementById('btn-popup-save');
+    btnSave.disabled = false;
+    btnSave.style.background = '#1E40AF';
+    btnSave.style.color = '#fff';
+    btnSave.style.cursor = 'pointer';
   },
 
   closePlanningPopup() {
     document.getElementById('planning-popup').style.display = 'none';
+    ManagerPage._selectedStatut = null;
   },
 
-  async savePlanningStat(statut) {
+  async savePlanningStat() {
+    const statut   = ManagerPage._selectedStatut;
     const driverId = ManagerPage._popupDriverId;
-    const date = ManagerPage._popupDate;
-    if (!driverId || !date) return;
+    const date     = ManagerPage._popupDate;
+    if (!statut || !driverId || !date) return;
+
+    const heuresVal = document.getElementById('popup-heures').value;
+    const heures = heuresVal !== '' ? parseFloat(heuresVal) : null;
+
     const { error } = await supabase.from('planning').upsert({
-      profile_id: driverId, date, statut, route: null
+      profile_id: driverId, date, statut, route: null,
+      heures: heures
     }, { onConflict: 'profile_id,date' });
+
     if (error) { toast('Erreur : ' + error.message); return; }
     ManagerPage.closePlanningPopup();
     toast('Planning mis à jour ✓');
