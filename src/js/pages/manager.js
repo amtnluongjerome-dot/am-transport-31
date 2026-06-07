@@ -1137,144 +1137,103 @@ const ManagerPage = {
     const { data: drivers } = await supabase.from('profiles').select('*').eq('role','driver').order('full_name');
     el.innerHTML = `
     <div class="card">
-      <div class="card-title">📨 Inviter un chauffeur
-        <span style="font-size:11px;font-weight:400;color:#6B7280;margin-left:8px;">Lien valable 48h</span>
-      </div>
-      <p class="text-muted text-sm" style="margin-bottom:14px;">Le chauffeur recevra un lien pour créer son propre compte avec son email perso et son mot de passe.</p>
+      <div class="card-title">👤 Créer un compte chauffeur</div>
       <div class="grid-2">
-        <div class="form-row">
-          <label class="form-label">Prénom Nom du chauffeur</label>
-          <input class="form-input" type="text" id="adm-name" placeholder="Jean Dupont">
-        </div>
+        <div class="form-row"><label class="form-label">Prénom Nom</label><input class="form-input" type="text" id="adm-name" placeholder="Jean Dupont"></div>
+        <div class="form-row"><label class="form-label">Email</label><input class="form-input" type="email" id="adm-email" placeholder="jean@gmail.com"></div>
+        <div class="form-row"><label class="form-label">Mot de passe</label><input class="form-input" type="text" id="adm-pwd" placeholder="Min. 8 caractères" value="Transport31!"></div>
       </div>
-      <div class="flex-end" style="gap:8px;">
-        <button class="btn primary" id="btn-gen-invite" onclick="ManagerPage.generateInvite()">🔗 Générer le lien</button>
+      <p class="text-muted text-sm" style="margin-top:4px;">💡 Communique les identifiants au chauffeur via WhatsApp.</p>
+      <div class="flex-end">
+        <button class="btn primary" id="btn-create-driver" onclick="ManagerPage.createDriver()">➕ Créer le compte</button>
       </div>
-      <div id="invite-result" style="display:none;margin-top:16px;">
-        <div style="font-size:12px;font-weight:600;color:#6B7280;margin-bottom:6px;">Lien d'invitation :</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input class="form-input" type="text" id="invite-link" readonly style="font-size:11px;font-family:monospace;background:#F9FAFB;flex:1;">
-          <button class="btn sm" onclick="ManagerPage.copyInviteLink()" style="white-space:nowrap;">📋 Copier</button>
-          <button class="btn sm" style="background:#25D366;color:#fff;border-color:#25D366;white-space:nowrap;" onclick="ManagerPage.sendWhatsApp()">WhatsApp</button>
-        </div>
-        <div style="font-size:11px;color:#9CA3AF;margin-top:6px;">⏱ Expire dans 48h — à usage unique</div>
+      <div id="driver-created-result" style="display:none;margin-top:14px;background:#F0FDF4;border:1px solid #D1FAE5;border-radius:10px;padding:14px;">
+        <div style="font-size:13px;font-weight:600;color:#166534;margin-bottom:8px;">✅ Compte créé — identifiants à transmettre :</div>
+        <div style="font-size:12px;font-family:monospace;color:#374151;line-height:1.8;" id="driver-created-info"></div>
+        <button class="btn sm" style="margin-top:10px;" onclick="ManagerPage.copyDriverCredentials()">📋 Copier</button>
+        <button class="btn sm" style="margin-top:10px;margin-left:6px;background:#25D366;color:#fff;border-color:#25D366;" onclick="ManagerPage.sendDriverWhatsApp()">WhatsApp</button>
       </div>
     </div>
-
     <div class="card">
       <div class="card-title">👥 Chauffeurs existants</div>
       <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th>Chauffeur</th><th>Email</th><th>Statut</th><th>Créé le</th><th></th></tr></thead>
+        <thead><tr><th>Chauffeur</th><th>Email</th><th>Créé le</th><th></th></tr></thead>
         <tbody>
         ${(drivers||[]).map(d=>`
           <tr>
             <td>${avatarHTML(d.full_name,28)} ${d.full_name}</td>
-            <td class="text-muted" style="font-size:11px;">${d.email || '<span style="color:#9CA3AF;font-style:italic;">En attente</span>'}</td>
-            <td>${d.email ? '<span class="badge b-green" style="font-size:10px;">Actif</span>' : '<span class="badge b-amber" style="font-size:10px;">Invitation envoyée</span>'}</td>
+            <td class="text-muted" style="font-size:11px;">${d.email || '—'}</td>
             <td class="text-muted text-sm">${fmtDate(d.created_at)}</td>
-            <td style="display:flex;gap:4px;">
-              <button class="btn sm" title="Renvoyer une invitation" onclick="ManagerPage.reInvite('${d.id}','${d.full_name}')">📨</button>
-              <button class="btn sm" style="color:#B91C1C;border-color:#FECACA;" onclick="ManagerPage.deleteDriver('${d.id}','${d.full_name}')">🗑️</button>
-            </td>
+            <td><button class="btn sm" style="color:#B91C1C;border-color:#FECACA;" onclick="ManagerPage.deleteDriver('${d.id}','${d.full_name}')">🗑️</button></td>
           </tr>
-        `).join('') || '<tr><td colspan="5" class="text-muted">Aucun chauffeur</td></tr>'}
+        `).join('') || '<tr><td colspan="4" class="text-muted">Aucun chauffeur</td></tr>'}
         </tbody>
       </table>
       </div>
     </div>`;
   },
 
-  async generateInvite(fullNameOverride) {
-    const name = fullNameOverride || document.getElementById('adm-name')?.value.trim();
-    if (!name) return toast('Merci de saisir le prénom et nom.');
+  async createDriver() {
+    const name  = document.getElementById('adm-name').value.trim();
+    const email = document.getElementById('adm-email').value.trim();
+    const pwd   = document.getElementById('adm-pwd').value.trim();
+    if (!name || !email || !pwd) return toast('Merci de remplir tous les champs.');
+    if (pwd.length < 8) return toast('Le mot de passe doit faire au moins 8 caractères.');
 
-    const btn = document.getElementById('btn-gen-invite');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Génération...'; }
+    const btn = document.getElementById('btn-create-driver');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Création...';
 
     try {
-      if (!fullNameOverride) {
-        await supabase.from('profiles').insert({ full_name: name, role: 'driver' });
-      }
-
       const session = await supabase.auth.getSession();
       const token = session.data.session.access_token;
       const response = await fetch(
-        'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/generate-invite',
+        'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/create-driver',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ full_name: name })
+          body: JSON.stringify({ full_name: name, email, password: pwd })
         }
       );
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || 'Erreur inconnue');
       }
-      const { token: inviteToken } = await response.json();
 
-      const link = `${window.location.origin}/invite.html?token=${inviteToken}`;
-      ManagerPage._currentInviteLink = link;
-      ManagerPage._currentInviteName = name;
+      // Afficher les identifiants
+      ManagerPage._lastDriverName  = name;
+      ManagerPage._lastDriverEmail = email;
+      ManagerPage._lastDriverPwd   = pwd;
 
-      const resultEl = document.getElementById('invite-result');
-      const linkInput = document.getElementById('invite-link');
-      if (resultEl && linkInput) {
-        linkInput.value = link;
-        resultEl.style.display = 'block';
-      }
+      document.getElementById('driver-created-info').innerHTML =
+        `📧 Email : <strong>${email}</strong><br>🔑 Mot de passe : <strong>${pwd}</strong>`;
+      document.getElementById('driver-created-result').style.display = 'block';
 
-      toast('Lien généré ✓');
+      document.getElementById('adm-name').value  = '';
+      document.getElementById('adm-email').value = '';
+      document.getElementById('adm-pwd').value   = 'Transport31!';
 
+      toast('Compte créé ✓');
+      ManagerPage.loadAdmin();
     } catch(e) {
       toast('Erreur : ' + e.message);
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '🔗 Générer le lien'; }
+      btn.disabled = false;
+      btn.innerHTML = '➕ Créer le compte';
     }
   },
 
-  copyInviteLink() {
-    const link = ManagerPage._currentInviteLink;
-    if (!link) return;
-    navigator.clipboard.writeText(link).then(() => toast('Lien copié ✓'));
+  copyDriverCredentials() {
+    const text = `AM Transport 31 — Identifiants de connexion\nEmail : ${ManagerPage._lastDriverEmail}\nMot de passe : ${ManagerPage._lastDriverPwd}\nLien : https://am-transport-31.vercel.app`;
+    navigator.clipboard.writeText(text).then(() => toast('Copié ✓'));
   },
 
-  sendWhatsApp() {
-    const link = ManagerPage._currentInviteLink;
-    const name = ManagerPage._currentInviteName;
-    if (!link) return;
+  sendDriverWhatsApp() {
     const msg = encodeURIComponent(
-      `Bonjour ${name} ! 👋\n\nVoici ton lien pour créer ton compte sur l'application AM Transport 31 :\n\n${link}\n\n⏱ Lien valable 48h.`
+      `Bonjour ${ManagerPage._lastDriverName} ! 👋\n\nVoici tes identifiants pour accéder à l'application AM Transport 31 :\n\n📧 Email : ${ManagerPage._lastDriverEmail}\n🔑 Mot de passe : ${ManagerPage._lastDriverPwd}\n\n🔗 Lien : https://am-transport-31.vercel.app\n\nPense à changer ton mot de passe après ta première connexion.`
     );
     window.open(`https://wa.me/?text=${msg}`, '_blank');
-  },
-
-  async reInvite(id, name) {
-    toast('Génération du lien...');
-    ManagerPage._currentInviteName = name;
-    try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session.access_token;
-      const response = await fetch(
-        'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/generate-invite',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ full_name: name })
-        }
-      );
-      if (!response.ok) throw new Error('Erreur génération');
-      const { token: inviteToken } = await response.json();
-      const link = `${window.location.origin}/invite.html?token=${inviteToken}`;
-      ManagerPage._currentInviteLink = link;
-
-      const msg = encodeURIComponent(
-        `Bonjour ${name} ! 👋\n\nVoici ton lien pour créer ton compte sur l'application AM Transport 31 :\n\n${link}\n\n⏱ Lien valable 48h.`
-      );
-      window.open(`https://wa.me/?text=${msg}`, '_blank');
-    } catch(e) {
-      toast('Erreur : ' + e.message);
-    }
   },
 
   async deleteDriver(id, name) {
