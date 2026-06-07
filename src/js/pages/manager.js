@@ -160,7 +160,6 @@ const ManagerPage = {
           <div class="notif ${t.statut === 'absent' ? 'err' : 'warn'}">
             <strong>${t.profiles?.full_name}</strong> —
             ${t.statut === 'absent' ? 'Aucune connexion aujourd\'hui' :
-              !t.photo_mobilic_soir && t.statut === 'cloture' ? 'Photo Mobilic soir manquante' :
               t.statut === 'en_tournee' ? 'Tournée non clôturée' : 'Données incomplètes'}
             ${t.vehicule_attributions?.plaque ? `(${t.vehicule_attributions.plaque})` : ''}
           </div>
@@ -233,153 +232,178 @@ const ManagerPage = {
   _planningWeekOffset: 0,
 
   async loadPlanning() {
-  const el = document.getElementById('panel-planning');
-  el.innerHTML = '<p class="text-muted">Chargement...</p>';
-  try {
-    const offset = ManagerPage._planningWeekOffset || 0;
-    const startDate = new Date(Date.now() + offset * 7 * 86400000);
-    const days = Array.from({length:7}, (_,i) => {
-      const d = new Date(startDate.getTime() + i * 86400000);
-      return {
-        date: d.toISOString().split('T')[0],
-        label: d.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'numeric'})
+    const el = document.getElementById('panel-planning');
+    el.innerHTML = '<p class="text-muted">Chargement...</p>';
+    try {
+      const offset = ManagerPage._planningWeekOffset || 0;
+      const startDate = new Date(Date.now() + offset * 7 * 86400000);
+      const days = Array.from({length:7}, (_,i) => {
+        const d = new Date(startDate.getTime() + i * 86400000);
+        return {
+          date: d.toISOString().split('T')[0],
+          label: d.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'numeric'})
+        };
+      });
+
+      const { data: planning } = await supabase
+        .from('planning')
+        .select('*, profiles(full_name)')
+        .gte('date', days[0].date)
+        .lte('date', days[6].date);
+
+      const { data: chauffeurs } = await supabase
+        .from('profiles').select('id,full_name').eq('role','driver').order('full_name');
+
+      const { data: forecasts } = await supabase
+        .from('planning_forecast')
+        .select('*')
+        .gte('date', days[0].date)
+        .lte('date', days[6].date);
+
+      const forecastMap = {};
+      (forecasts||[]).forEach(f => { forecastMap[f.date] = f; });
+
+      const countByDay = {};
+      days.forEach(d => {
+        const entries = (planning||[]).filter(p => p.date === d.date);
+        countByDay[d.date] = {
+          travail: entries.filter(p => p.statut === 'travail').length,
+          mad: entries.filter(p => p.statut === 'mad').length,
+          forecast: forecastMap[d.date]?.forecast || 0,
+        };
+      });
+
+      const statutCell = (entry) => {
+        if (!entry) return `<div style="width:100%;height:36px;border-radius:8px;background:#F3F4F6;border:2px dashed #E5E7EB;cursor:pointer;"></div>`;
+        const map = {
+          'travail': 'background:#D1FAE5;color:#166534;border:2px solid #A7F3D0;',
+          'repos':   'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;',
+          'cut':     'background:#FEE2E2;color:#991B1B;border:2px solid #FECACA;',
+          'mad':     'background:#DBEAFE;color:#1E40AF;border:2px solid #BFDBFE;',
+        };
+        const icons = { travail:'🟢', repos:'⚪', cut:'✂️', mad:'🔵' };
+        const style = map[entry.statut] || 'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;';
+        return `<div style="width:100%;height:36px;border-radius:8px;${style}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;">${icons[entry.statut]||''}</div>`;
       };
-    });
 
-    const { data: planning } = await supabase
-      .from('planning')
-      .select('*, profiles(full_name)')
-      .gte('date', days[0].date)
-      .lte('date', days[6].date);
+      const totalTravail  = days.reduce((s, d) => s + countByDay[d.date].travail, 0);
+      const totalMad      = days.reduce((s, d) => s + countByDay[d.date].mad, 0);
+      const totalForecast = days.reduce((s, d) => s + countByDay[d.date].forecast, 0);
+      const totalBuffer   = totalTravail - totalForecast;
 
-    const { data: chauffeurs } = await supabase
-      .from('profiles').select('id,full_name').eq('role','driver').order('full_name');
-
-    const { data: forecasts } = await supabase
-      .from('planning_forecast')
-      .select('*')
-      .gte('date', days[0].date)
-      .lte('date', days[6].date);
-
-    const forecastMap = {};
-    (forecasts||[]).forEach(f => { forecastMap[f.date] = f; });
-
-    // Calcul travail et MAD par jour
-    const countByDay = {};
-    days.forEach(d => {
-      const entries = (planning||[]).filter(p => p.date === d.date);
-      countByDay[d.date] = {
-        travail: entries.filter(p => p.statut === 'travail').length,
-        mad: entries.filter(p => p.statut === 'mad').length,
-        forecast: forecastMap[d.date]?.forecast || 0,
-        forecastId: forecastMap[d.date]?.id || null,
+      const bufferStyle = (buffer, forecast) => {
+        if (forecast === 0) return { color: '#9CA3AF', bg: '#F3F4F6', label: '—' };
+        const sign = buffer > 0 ? '+' : '';
+        const color = buffer < 0 ? '#B91C1C' : buffer <= 3 ? '#92400E' : '#166534';
+        const bg    = buffer < 0 ? '#FEE2E2' : buffer <= 3 ? '#FEF3C7' : '#D1FAE5';
+        return { color, bg, label: sign + buffer };
       };
-    });
 
-    const statutCell = (entry) => {
-      if (!entry) return `<div style="width:100%;height:36px;border-radius:8px;background:#F3F4F6;border:2px dashed #E5E7EB;cursor:pointer;"></div>`;
-      const map = {
-        'travail': 'background:#D1FAE5;color:#166534;border:2px solid #A7F3D0;',
-        'repos':   'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;',
-        'cut':     'background:#FEE2E2;color:#991B1B;border:2px solid #FECACA;',
-        'mad':     'background:#DBEAFE;color:#1E40AF;border:2px solid #BFDBFE;',
-      };
-      const icons = { travail:'🟢', repos:'⚪', cut:'✂️', mad:'🔵' };
-      const style = map[entry.statut] || 'background:#F3F4F6;color:#6B7280;border:2px solid #E5E7EB;';
-      return `<div style="width:100%;height:36px;border-radius:8px;${style}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;">${icons[entry.statut]||''}</div>`;
-    };
-
-    const totalTravail = days.reduce((s, d) => s + countByDay[d.date].travail, 0);
-    const totalMad = days.reduce((s, d) => s + countByDay[d.date].mad, 0);
-    const totalForecast = days.reduce((s, d) => s + countByDay[d.date].forecast, 0);
-
-    el.innerHTML = `
-    <div class="card" style="overflow-x:auto;">
-      <div class="card-title">📅 Planning
-        <div class="card-actions">
-          <button class="btn sm" onclick="ManagerPage._planningWeekOffset--;ManagerPage.loadPlanning()">◀</button>
-          <span style="font-size:11px;color:#6B7280;padding:0 4px;">${days[0].label} → ${days[6].label}</span>
-          <button class="btn sm" onclick="ManagerPage._planningWeekOffset++;ManagerPage.loadPlanning()">▶</button>
+      el.innerHTML = `
+      <div class="card" style="overflow-x:auto;">
+        <div class="card-title">📅 Planning
+          <div class="card-actions">
+            <button class="btn sm" onclick="ManagerPage._planningWeekOffset--;ManagerPage.loadPlanning()">◀</button>
+            <span style="font-size:11px;color:#6B7280;padding:0 4px;">${days[0].label} → ${days[6].label}</span>
+            <button class="btn sm" onclick="ManagerPage._planningWeekOffset++;ManagerPage.loadPlanning()">▶</button>
+          </div>
         </div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;min-width:500px;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:6px 8px;font-size:11px;color:#6B7280;min-width:120px;"></th>
-            ${days.map(d => `<th style="text-align:center;padding:6px 3px;font-size:10px;color:#6B7280;min-width:44px;">${d.label}</th>`).join('')}
-            <th style="text-align:center;padding:6px 3px;font-size:10px;color:#6B7280;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Ligne FORECAST -->
-          <tr style="background:#EFF6FF;">
-            <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#1E40AF;">📊 Forecast Amazon</td>
-            ${days.map(d => `
-              <td style="padding:3px;text-align:center;">
-                <input type="number" min="0" max="99" value="${countByDay[d.date].forecast}"
-                  style="width:40px;text-align:center;border:1px solid #BFDBFE;border-radius:6px;padding:4px 2px;font-size:12px;font-weight:700;color:#1E40AF;background:#EFF6FF;"
-                  onchange="ManagerPage.saveForecast('${d.date}', this.value)">
-              </td>`).join('')}
-            <td style="padding:6px 3px;text-align:center;font-size:12px;font-weight:700;color:#1E40AF;">${totalForecast}</td>
-          </tr>
-          <!-- Ligne TRAVAIL -->
-          <tr style="background:#F0FDF4;">
-            <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#166534;">🟢 Travail</td>
-            ${days.map(d => {
-              const count = countByDay[d.date].travail;
-              const forecast = countByDay[d.date].forecast;
-              const color = forecast > 0 && count < forecast ? '#B91C1C' : count > 0 ? '#166534' : '#9CA3AF';
-              return `<td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:${color};">${count || '—'}</td>`;
-            }).join('')}
-            <td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:#166534;">${totalTravail}</td>
-          </tr>
-          <!-- Ligne MAD -->
-          <tr style="background:#EFF6FF;">
-            <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#1E40AF;">🔵 MAD</td>
-            ${days.map(d => {
-              const count = countByDay[d.date].mad;
-              return `<td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:${count > 0 ? '#1E40AF' : '#9CA3AF'};">${count || '—'}</td>`;
-            }).join('')}
-            <td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:#1E40AF;">${totalMad}</td>
-          </tr>
-          <!-- Séparateur -->
-          <tr><td colspan="9" style="height:8px;background:#F9FAFB;"></td></tr>
-          <!-- Chauffeurs -->
-          ${(chauffeurs||[]).map(c => {
-            const cells = days.map(d => {
-              const entry = planning?.find(p => p.profile_id === c.id && p.date === d.date);
-              return `<td style="padding:3px;" onclick="ManagerPage.openPlanningPopup('${c.id}','${c.full_name}','${d.date}','${d.label}')">${statutCell(entry)}</td>`;
-            }).join('');
-            const totalJours = days.filter(d => {
-              const entry = planning?.find(p => p.profile_id === c.id && p.date === d.date);
-              return entry?.statut === 'travail';
-            }).length;
-            return `<tr>
-              <td style="padding:6px 8px;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                  ${avatarHTML(c.full_name, 24)}
-                  <span style="font-size:11px;font-weight:500;">${c.full_name.split(' ')[0]}</span>
-                </div>
+        <table style="width:100%;border-collapse:collapse;min-width:500px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;color:#6B7280;min-width:120px;"></th>
+              ${days.map(d => `<th style="text-align:center;padding:6px 3px;font-size:10px;color:#6B7280;min-width:44px;">${d.label}</th>`).join('')}
+              <th style="text-align:center;padding:6px 3px;font-size:10px;color:#6B7280;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- FORECAST -->
+            <tr style="background:#EFF6FF;">
+              <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#1E40AF;">📊 Forecast</td>
+              ${days.map(d => `
+                <td style="padding:3px;text-align:center;">
+                  <input type="number" min="0" max="99" value="${countByDay[d.date].forecast}"
+                    style="width:40px;text-align:center;border:1px solid #BFDBFE;border-radius:6px;padding:4px 2px;font-size:12px;font-weight:700;color:#1E40AF;background:#EFF6FF;"
+                    onchange="ManagerPage.saveForecast('${d.date}', this.value)">
+                </td>`).join('')}
+              <td style="padding:6px 3px;text-align:center;font-size:12px;font-weight:700;color:#1E40AF;">${totalForecast}</td>
+            </tr>
+            <!-- TRAVAIL -->
+            <tr style="background:#F0FDF4;">
+              <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#166534;">🟢 Travail</td>
+              ${days.map(d => {
+                const count = countByDay[d.date].travail;
+                const forecast = countByDay[d.date].forecast;
+                const color = forecast > 0 && count < forecast ? '#B91C1C' : count > 0 ? '#166534' : '#9CA3AF';
+                return `<td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:${color};">${count || '—'}</td>`;
+              }).join('')}
+              <td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:#166534;">${totalTravail}</td>
+            </tr>
+            <!-- BUFFER -->
+            <tr style="background:#FFFBEB;">
+              <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#374151;">📊 Buffer</td>
+              ${days.map(d => {
+                const buffer = countByDay[d.date].travail - countByDay[d.date].forecast;
+                const bs = bufferStyle(buffer, countByDay[d.date].forecast);
+                return `<td style="padding:4px 3px;text-align:center;">
+                  <span style="display:inline-block;min-width:32px;padding:3px 6px;border-radius:6px;background:${bs.bg};color:${bs.color};font-size:12px;font-weight:700;">${bs.label}</span>
+                </td>`;
+              }).join('')}
+              <td style="padding:4px 3px;text-align:center;">
+                ${(() => {
+                  const bs = bufferStyle(totalBuffer, totalForecast);
+                  return `<span style="display:inline-block;min-width:32px;padding:3px 6px;border-radius:6px;background:${bs.bg};color:${bs.color};font-size:12px;font-weight:700;">${bs.label}</span>`;
+                })()}
               </td>
-              ${cells}
-              <td style="padding:6px 3px;text-align:center;font-size:12px;font-weight:600;color:#6B7280;">${totalJours || '—'}</td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="9" class="text-muted">Aucun chauffeur</td></tr>'}
-        </tbody>
-      </table>
-    </div>`;
-  } catch(e) {
-    el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
-  }
-},
+            </tr>
+            <!-- MAD -->
+            <tr style="background:#EFF6FF;">
+              <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#1E40AF;">🔵 MAD</td>
+              ${days.map(d => {
+                const count = countByDay[d.date].mad;
+                return `<td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:${count > 0 ? '#1E40AF' : '#9CA3AF'};">${count || '—'}</td>`;
+              }).join('')}
+              <td style="padding:6px 3px;text-align:center;font-size:13px;font-weight:700;color:#1E40AF;">${totalMad}</td>
+            </tr>
+            <!-- Séparateur -->
+            <tr><td colspan="9" style="height:8px;background:#F9FAFB;"></td></tr>
+            <!-- Chauffeurs -->
+            ${(chauffeurs||[]).map(c => {
+              const cells = days.map(d => {
+                const entry = planning?.find(p => p.profile_id === c.id && p.date === d.date);
+                return `<td style="padding:3px;" onclick="ManagerPage.openPlanningPopup('${c.id}','${c.full_name}','${d.date}','${d.label}')">${statutCell(entry)}</td>`;
+              }).join('');
+              const totalJours = days.filter(d => {
+                const entry = planning?.find(p => p.profile_id === c.id && p.date === d.date);
+                return entry?.statut === 'travail';
+              }).length;
+              return `<tr>
+                <td style="padding:6px 8px;">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    ${avatarHTML(c.full_name, 24)}
+                    <span style="font-size:11px;font-weight:500;">${c.full_name.split(' ')[0]}</span>
+                  </div>
+                </td>
+                ${cells}
+                <td style="padding:6px 3px;text-align:center;font-size:12px;font-weight:600;color:#6B7280;">${totalJours || '—'}</td>
+              </tr>`;
+            }).join('') || '<tr><td colspan="9" class="text-muted">Aucun chauffeur</td></tr>'}
+          </tbody>
+        </table>
+      </div>`;
+    } catch(e) {
+      el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
+    }
+  },
 
-async saveForecast(date, value) {
-  const forecast = parseInt(value) || 0;
-  const { error } = await supabase.from('planning_forecast').upsert({
-    date, forecast
-  }, { onConflict: 'date' });
-  if (error) toast('Erreur sauvegarde forecast : ' + error.message);
-},
+  async saveForecast(date, value) {
+    const forecast = parseInt(value) || 0;
+    const { error } = await supabase.from('planning_forecast').upsert({
+      date, forecast
+    }, { onConflict: 'date' });
+    if (error) toast('Erreur sauvegarde forecast : ' + error.message);
+  },
+
   openPlanningPopup(driverId, driverName, date, dateLabel) {
     ManagerPage._popupDriverId = driverId;
     ManagerPage._popupDate = date;
@@ -420,9 +444,8 @@ async saveForecast(date, value) {
       const { data: chauffeurs } = await supabase.from('profiles').select('id,full_name').eq('role','driver').order('full_name');
       const { data: badges } = await supabase.from('telepeage_badges').select('id,reference').order('reference');
 
-      // ── Détection des doublons ──
-      const plaques = (attrs||[]).map(a => a.plaque).filter(Boolean);
-      const routes  = (attrs||[]).map(a => a.route).filter(Boolean);
+      const plaques  = (attrs||[]).map(a => a.plaque).filter(Boolean);
+      const routes   = (attrs||[]).map(a => a.route).filter(Boolean);
       const badgeIds = (attrs||[]).map(a => a.telepeage_badge_id).filter(Boolean);
 
       const doublonPlaques = plaques.filter((p, i) => plaques.indexOf(p) !== i);
@@ -449,10 +472,10 @@ async saveForecast(date, value) {
             const isDuplBadge  = doublonBadges.includes(a.telepeage_badge_id);
             return `<tr>
               <td>${avatarHTML(a.profiles?.full_name,28)} ${a.profiles?.full_name}</td>
-              <td style="${isDuplPlaque ? 'color:#B91C1C;font-weight:700;' : ''}">${plateBadge(a.plaque)}${isDuplPlaque ? ' ⚠️' : ''}</td>
-              <td style="${isDuplRoute ? 'color:#B91C1C;font-weight:700;' : ''}">${routeBadge(a.route)}${isDuplRoute ? ' ⚠️' : ''}</td>
+              <td style="${isDuplPlaque?'color:#B91C1C;font-weight:700;':''}">${plateBadge(a.plaque)}${isDuplPlaque?' ⚠️':''}</td>
+              <td style="${isDuplRoute?'color:#B91C1C;font-weight:700;':''}">${routeBadge(a.route)}${isDuplRoute?' ⚠️':''}</td>
               <td>${a.vague ? `<span class="badge b-amber">Vague ${a.vague}</span>` : '—'}</td>
-              <td style="${isDuplBadge ? 'color:#B91C1C;font-weight:700;' : ''}">${tpBadge(a.telepeage_badges?.reference)}${isDuplBadge ? ' ⚠️' : ''}</td>
+              <td style="${isDuplBadge?'color:#B91C1C;font-weight:700;':''}">${tpBadge(a.telepeage_badges?.reference)}${isDuplBadge?' ⚠️':''}</td>
               <td>${statusBadge(t?.statut || 'absent')}</td>
               <td><button class="btn sm" onclick="ManagerPage.openEditAttrPopup('${a.id}','${a.plaque||''}','${a.route||''}','${a.vague||''}','${a.telepeage_badge_id||''}','${a.profiles?.full_name||''}')">✏️</button></td>
             </tr>`;
@@ -498,7 +521,6 @@ async saveForecast(date, value) {
         </div>
       </div>`;
 
-      // Stocke les badges pour le popup d'édition
       ManagerPage._badges = badges || [];
     } catch(e) {
       el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
@@ -511,13 +533,11 @@ async saveForecast(date, value) {
     document.getElementById('edit-plaque').value = plaque;
     document.getElementById('edit-route').value = route;
     document.getElementById('edit-vague').value = vague;
-
     const badgeSelect = document.getElementById('edit-badge');
     badgeSelect.innerHTML = `<option value="">— Aucun —</option>` +
       (ManagerPage._badges||[]).map(b =>
         `<option value="${b.id}" ${b.id === badgeId ? 'selected' : ''}>${b.reference}</option>`
       ).join('');
-
     document.getElementById('edit-attr-popup').style.display = 'flex';
   },
 
@@ -531,15 +551,11 @@ async saveForecast(date, value) {
     const route  = document.getElementById('edit-route').value.trim().toUpperCase() || null;
     const vague  = document.getElementById('edit-vague').value || null;
     const badge  = document.getElementById('edit-badge').value || null;
-
     if (!plaque) return toast('La plaque est obligatoire.');
-
     const { error } = await supabase.from('vehicule_attributions').update({
       plaque, route, vague, telepeage_badge_id: badge || null
     }).eq('id', id);
-
     if (error) return toast('Erreur : ' + error.message);
-
     toast('Attribution mise à jour ✓');
     ManagerPage.closeEditAttrPopup();
     ManagerPage.loadVehicules();
@@ -1071,7 +1087,6 @@ async saveForecast(date, value) {
     }
   },
 
-  // ── EXPORTS ──
   exportChauffeurs() { toast('Export en cours...'); },
   exportVehicules()  { toast('Export en cours...'); },
   exportHistorique() { toast('Export en cours...'); },
