@@ -8,33 +8,6 @@ const ManagerPage = {
     const p = Auth.currentProfile;
     const c = avatarBg(p.full_name);
     document.getElementById('screen-manager').innerHTML = `
-    <style>
-      @media (max-width: 768px) {
-        #menu-toggle { display:block !important; }
-        .main-layout { flex-direction:column !important; }
-        #manager-sidebar {
-          position:fixed !important;
-          left:-280px !important;
-          top:0 !important;
-          height:100vh !important;
-          width:260px !important;
-          z-index:100 !important;
-          transition:left 0.3s ease !important;
-          box-shadow:4px 0 20px rgba(0,0,0,0.15) !important;
-          overflow-y:auto !important;
-          padding-top:60px !important;
-        }
-        #manager-sidebar.open { left:0 !important; }
-        .content { margin-left:0 !important; width:100% !important; }
-        .stats-row { grid-template-columns:1fr 1fr !important; }
-        .tbl-wrap { overflow-x:auto !important; }
-        .grid-4 { grid-template-columns:1fr 1fr !important; }
-        .card-title { flex-direction:column !important; gap:8px !important; }
-        .card-actions { flex-wrap:wrap !important; }
-        table.tbl { font-size:12px !important; }
-        table.tbl th, table.tbl td { padding:6px 8px !important; }
-      }
-    </style>
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
         <button id="menu-toggle" onclick="ManagerPage.toggleMenu()" style="display:none;background:none;border:1px solid #E5E7EB;border-radius:8px;font-size:20px;cursor:pointer;padding:6px 10px;line-height:1;">☰</button>
@@ -77,6 +50,7 @@ const ManagerPage = {
         <div class="panel" id="panel-admin"></div>
       </div>
     </div>
+
     <!-- Popup planning -->
     <div id="planning-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
       <div style="background:#fff;border-radius:16px;padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
@@ -90,7 +64,40 @@ const ManagerPage = {
         </div>
         <button onclick="ManagerPage.closePlanningPopup()" style="width:100%;padding:10px;border-radius:10px;border:1px solid #E5E7EB;background:#fff;color:#6B7280;cursor:pointer;font-size:13px;">Annuler</button>
       </div>
+    </div>
+
+    <!-- Popup édition attribution -->
+    <div id="edit-attr-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:16px;" id="edit-attr-title">✏️ Modifier l'attribution</div>
+        <div class="form-row">
+          <label class="form-label">Plaque du camion</label>
+          <input class="form-input" type="text" id="edit-plaque" style="font-family:monospace;text-transform:uppercase;">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Numéro de route</label>
+          <input class="form-input" type="text" id="edit-route" style="text-transform:uppercase;">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Vague de départ</label>
+          <select class="form-input" id="edit-vague">
+            <option value="">— Aucune —</option>
+            <option value="1">1ère vague — 12h10</option>
+            <option value="2">2ème vague — 12h20</option>
+            <option value="3">3ème vague</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Badge télépéage</label>
+          <select class="form-input" id="edit-badge"></select>
+        </div>
+        <div class="flex-end">
+          <button class="btn" onclick="ManagerPage.closeEditAttrPopup()">Annuler</button>
+          <button class="btn primary" onclick="ManagerPage.saveEditAttribution()" style="margin-left:8px;">✓ Enregistrer</button>
+        </div>
+      </div>
     </div>`;
+
     await ManagerPage.loadDashboard();
   },
 
@@ -195,11 +202,7 @@ const ManagerPage = {
 
       el.innerHTML = `
       <div class="card">
-        <div class="card-title">👥 Chauffeurs — statut du jour
-          <div class="card-actions">
-            <button class="btn sm primary" onclick="ManagerPage.exportChauffeurs()">⬇ Export Excel</button>
-          </div>
-        </div>
+        <div class="card-title">👥 Chauffeurs — statut du jour</div>
         <div class="tbl-wrap">
         <table class="tbl">
           <thead><tr><th>Chauffeur</th><th>Route</th><th>Camion</th><th>Télépéage</th><th>Km</th><th>Photos</th><th>Statut</th></tr></thead>
@@ -208,15 +211,12 @@ const ManagerPage = {
             const km = t.km_retour && t.km_depart ? t.km_retour - t.km_depart : null;
             const photos = [t.photo_camion_matin, t.photo_mobilic_matin, t.photo_camion_soir, t.photo_mobilic_soir].filter(Boolean).length;
             return `<tr>
-              <td><div class="driver-info">${avatarHTML(t.profiles?.full_name, 28)}<span style="font-size:12px;">${t.profiles?.full_name}</span></div></td>
+              <td><div class="driver-info">${avatarHTML(t.profiles?.full_name, 28)}<span>${t.profiles?.full_name}</span></div></td>
               <td>${routeBadge(t.vehicule_attributions?.route)}</td>
               <td>${plateBadge(t.vehicule_attributions?.plaque)}</td>
               <td>${tpBadge(t.vehicule_attributions?.telepeage_badges?.reference)}</td>
               <td>${km !== null ? fmtKm(km) : '—'}</td>
-              <td>
-                <span class="dot ${photos === 4 ? 'dot-ok' : photos >= 2 ? 'dot-warn' : 'dot-err'}"></span>${photos}/4
-                ${t.photo_camion_matin ? `<a href="${t.photo_camion_matin}" target="_blank"><button class="btn sm" style="margin-left:4px;">📷</button></a>` : ''}
-              </td>
+              <td><span class="dot ${photos === 4 ? 'dot-ok' : photos >= 2 ? 'dot-warn' : 'dot-err'}"></span>${photos}/4</td>
               <td>${statusBadge(t.statut || 'absent')}</td>
             </tr>`;
           }).join('') || '<tr><td colspan="7" class="text-muted">Aucune donnée</td></tr>'}
@@ -325,11 +325,9 @@ const ManagerPage = {
     const driverId = ManagerPage._popupDriverId;
     const date = ManagerPage._popupDate;
     if (!driverId || !date) return;
-
     const { error } = await supabase.from('planning').upsert({
       profile_id: driverId, date, statut, route: null
     }, { onConflict: 'profile_id,date' });
-
     if (error) { toast('Erreur : ' + error.message); return; }
     ManagerPage.closePlanningPopup();
     toast('Planning mis à jour ✓');
@@ -350,28 +348,41 @@ const ManagerPage = {
       const { data: chauffeurs } = await supabase.from('profiles').select('id,full_name').eq('role','driver').order('full_name');
       const { data: badges } = await supabase.from('telepeage_badges').select('id,reference').order('reference');
 
+      // ── Détection des doublons ──
+      const plaques = (attrs||[]).map(a => a.plaque).filter(Boolean);
+      const routes  = (attrs||[]).map(a => a.route).filter(Boolean);
+      const badgeIds = (attrs||[]).map(a => a.telepeage_badge_id).filter(Boolean);
+
+      const doublonPlaques = plaques.filter((p, i) => plaques.indexOf(p) !== i);
+      const doublonRoutes  = routes.filter((r, i) => routes.indexOf(r) !== i);
+      const doublonBadges  = badgeIds.filter((b, i) => badgeIds.indexOf(b) !== i);
+
+      const alertes = [];
+      if (doublonPlaques.length) alertes.push(`⚠️ Plaque(s) en doublon : <strong>${[...new Set(doublonPlaques)].join(', ')}</strong>`);
+      if (doublonRoutes.length)  alertes.push(`⚠️ Route(s) en doublon : <strong>${[...new Set(doublonRoutes)].join(', ')}</strong>`);
+      if (doublonBadges.length)  alertes.push(`⚠️ Badge(s) télépéage en doublon !`);
+
       el.innerHTML = `
+      ${alertes.length ? `<div class="notif err" style="margin-bottom:12px;">${alertes.join('<br>')}</div>` : ''}
       <div class="card">
-        <div class="card-title">🚛 Attributions véhicules — aujourd'hui
-          <div class="card-actions">
-            <button class="btn sm primary" onclick="ManagerPage.exportVehicules()">⬇ Export</button>
-          </div>
-        </div>
+        <div class="card-title">🚛 Attributions véhicules — aujourd'hui</div>
         <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Chauffeur</th><th>Plaque</th><th>Télépéage</th><th>Km départ</th><th>Km retour</th><th>Total</th><th>Statut</th></tr></thead>
+          <thead><tr><th>Chauffeur</th><th>Plaque</th><th>Route</th><th>Vague</th><th>Télépéage</th><th>Statut</th><th></th></tr></thead>
           <tbody>
           ${(attrs||[]).map(a => {
             const t = Array.isArray(a.tournees) ? a.tournees[0] : a.tournees;
-            const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
+            const isDuplPlaque = doublonPlaques.includes(a.plaque);
+            const isDuplRoute  = doublonRoutes.includes(a.route);
+            const isDuplBadge  = doublonBadges.includes(a.telepeage_badge_id);
             return `<tr>
               <td>${avatarHTML(a.profiles?.full_name,28)} ${a.profiles?.full_name}</td>
-              <td>${plateBadge(a.plaque)}</td>
-              <td>${tpBadge(a.telepeage_badges?.reference)}</td>
-              <td>${t?.km_depart ? fmtNum(t.km_depart) : '—'}</td>
-              <td>${t?.km_retour ? fmtNum(t.km_retour) : '—'}</td>
-              <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
+              <td style="${isDuplPlaque ? 'color:#B91C1C;font-weight:700;' : ''}">${plateBadge(a.plaque)}${isDuplPlaque ? ' ⚠️' : ''}</td>
+              <td style="${isDuplRoute ? 'color:#B91C1C;font-weight:700;' : ''}">${routeBadge(a.route)}${isDuplRoute ? ' ⚠️' : ''}</td>
+              <td>${a.vague ? `<span class="badge b-amber">Vague ${a.vague}</span>` : '—'}</td>
+              <td style="${isDuplBadge ? 'color:#B91C1C;font-weight:700;' : ''}">${tpBadge(a.telepeage_badges?.reference)}${isDuplBadge ? ' ⚠️' : ''}</td>
               <td>${statusBadge(t?.statut || 'absent')}</td>
+              <td><button class="btn sm" onclick="ManagerPage.openEditAttrPopup('${a.id}','${a.plaque||''}','${a.route||''}','${a.vague||''}','${a.telepeage_badge_id||''}','${a.profiles?.full_name||''}')">✏️</button></td>
             </tr>`;
           }).join('') || '<tr><td colspan="7" class="text-muted">Aucune attribution aujourd\'hui</td></tr>'}
           </tbody>
@@ -389,7 +400,9 @@ const ManagerPage = {
           <div class="form-row"><label class="form-label">Plaque du camion</label>
             <input class="form-input" type="text" id="veh-plaque" placeholder="AB-1234-CD" style="font-family:monospace;letter-spacing:1px;text-transform:uppercase;">
           </div>
-          <div class="form-row"><label class="form-label">Numéro de route</label><input class="form-input" type="text" id="veh-route" placeholder="Ex: R-14" style="text-transform:uppercase;"></div>
+          <div class="form-row"><label class="form-label">Numéro de route</label>
+            <input class="form-input" type="text" id="veh-route" placeholder="Ex: R-14" style="text-transform:uppercase;">
+          </div>
           <div class="form-row"><label class="form-label">Vague de départ</label>
             <select class="form-input" id="veh-vague">
               <option value="">— Aucune —</option>
@@ -412,9 +425,52 @@ const ManagerPage = {
           <button class="btn primary" onclick="ManagerPage.saveAttribution()">✓ Attribuer</button>
         </div>
       </div>`;
+
+      // Stocke les badges pour le popup d'édition
+      ManagerPage._badges = badges || [];
     } catch(e) {
       el.innerHTML = `<div class="notif err">Erreur : ${e.message}</div>`;
     }
+  },
+
+  async openEditAttrPopup(id, plaque, route, vague, badgeId, name) {
+    ManagerPage._editAttrId = id;
+    document.getElementById('edit-attr-title').textContent = `✏️ Modifier — ${name}`;
+    document.getElementById('edit-plaque').value = plaque;
+    document.getElementById('edit-route').value = route;
+    document.getElementById('edit-vague').value = vague;
+
+    const badgeSelect = document.getElementById('edit-badge');
+    badgeSelect.innerHTML = `<option value="">— Aucun —</option>` +
+      (ManagerPage._badges||[]).map(b =>
+        `<option value="${b.id}" ${b.id === badgeId ? 'selected' : ''}>${b.reference}</option>`
+      ).join('');
+
+    document.getElementById('edit-attr-popup').style.display = 'flex';
+  },
+
+  closeEditAttrPopup() {
+    document.getElementById('edit-attr-popup').style.display = 'none';
+  },
+
+  async saveEditAttribution() {
+    const id     = ManagerPage._editAttrId;
+    const plaque = document.getElementById('edit-plaque').value.trim().toUpperCase();
+    const route  = document.getElementById('edit-route').value.trim().toUpperCase() || null;
+    const vague  = document.getElementById('edit-vague').value || null;
+    const badge  = document.getElementById('edit-badge').value || null;
+
+    if (!plaque) return toast('La plaque est obligatoire.');
+
+    const { error } = await supabase.from('vehicule_attributions').update({
+      plaque, route, vague, telepeage_badge_id: badge || null
+    }).eq('id', id);
+
+    if (error) return toast('Erreur : ' + error.message);
+
+    toast('Attribution mise à jour ✓');
+    ManagerPage.closeEditAttrPopup();
+    ManagerPage.loadVehicules();
   },
 
   async saveAttribution() {
@@ -481,9 +537,7 @@ const ManagerPage = {
               <td>${plateBadge(h.plaque)}</td>
               <td>${km !== null ? '<strong>'+fmtKm(km)+'</strong>' : '—'}</td>
               <td>${statusBadge(t?.statut || 'absent')}</td>
-              <td style="white-space:nowrap;">
-                ${photos.map(p => `<a href="${p.url}" target="_blank"><button class="btn sm" style="margin:1px;padding:2px 6px;font-size:10px;">${p.label}</button></a>`).join('')||'—'}
-              </td>
+              <td>${photos.map(p => `<a href="${p.url}" target="_blank"><button class="btn sm" style="margin:1px;padding:2px 6px;font-size:10px;">${p.label}</button></a>`).join('')||'—'}</td>
             </tr>`;
           }).join('') || '<tr><td colspan="6" class="text-muted">Aucun historique</td></tr>'}
           </tbody>
@@ -715,10 +769,7 @@ const ManagerPage = {
         <div class="tbl-wrap">
         <table class="tbl">
           <thead>
-            <tr>
-              <th>#</th><th>Chauffeur</th><th>Statut</th><th>Moy.</th>
-              <th>Colis</th><th>DCR</th><th>Remb.</th><th>LOR</th><th>Photo</th><th>Contact</th><th>Plainte</th>
-            </tr>
+            <tr><th>#</th><th>Chauffeur</th><th>Statut</th><th>Moy.</th><th>Colis</th><th>DCR</th><th>Remb.</th><th>LOR</th><th>Photo</th><th>Contact</th><th>Plainte</th></tr>
           </thead>
           <tbody id="perf-tbody">
           ${ManagerPage.renderPerfRows(data, total)}
@@ -749,9 +800,7 @@ const ManagerPage = {
   },
 
   renderPerfRows(data, total) {
-    if (!data || data.length === 0) {
-      return '<tr><td colspan="11" class="text-muted">Aucune donnée</td></tr>';
-    }
+    if (!data || data.length === 0) return '<tr><td colspan="11" class="text-muted">Aucune donnée</td></tr>';
 
     const statutBadge = (s) => {
       const map = {
@@ -811,7 +860,6 @@ const ManagerPage = {
       .select('*')
       .eq('semaine', semaine)
       .order('classement', { ascending: true });
-
     const total = (perf||[]).length;
     const tbody = document.getElementById('perf-tbody');
     if (tbody) tbody.innerHTML = ManagerPage.renderPerfRows(perf, total);
@@ -927,7 +975,6 @@ const ManagerPage = {
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session.access_token;
-
       const response = await fetch(
         'https://hzyuzirncpgfpqhattur.supabase.co/functions/v1/create-driver',
         {
@@ -936,12 +983,10 @@ const ManagerPage = {
           body: JSON.stringify({ full_name: name, email })
         }
       );
-
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || 'Erreur inconnue');
       }
-
       toast('Compte créé ✓ — mot de passe : ChangeMe2024!');
       document.getElementById('adm-name').value = '';
       document.getElementById('adm-email').value = '';
