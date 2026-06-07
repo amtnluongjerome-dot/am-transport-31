@@ -303,8 +303,7 @@ const DriverPage = {
 
     const { data: perf } = await supabase
       .from('performance_semaines').select('*').eq('semaine', semaine)
-      .ilike('nom_prenom', `%${fullName}%`).maybeSingle();
-
+.ilike('nom_prenom', `%${fullName.split(' ')[0]}%`)
     const statutBadge = (s) => {
       const map = {
         'FANTASTIC +': '<span class="badge" style="background:#E6F4EA;color:#1E7E34;font-size:14px;padding:6px 12px;">⭐ Fantastic +</span>',
