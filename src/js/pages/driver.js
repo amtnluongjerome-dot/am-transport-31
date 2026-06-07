@@ -44,7 +44,6 @@ const DriverPage = {
       </div>
       <div class="driver-page">
         ${DriverPage.renderStatutSpecial(statutPlanning, p.full_name)}
-        <div id="driver-next-planning"></div>
         <div id="driver-planning-section"></div>
         <div id="driver-perf-section"></div>
       </div>`;
@@ -201,7 +200,6 @@ const DriverPage = {
     const el = document.getElementById('driver-perf-section');
     if (!el) return;
 
-    await DriverPage.loadNextPlanning();
     await DriverPage.loadPlanningDriver();
 
     try {
@@ -220,54 +218,6 @@ const DriverPage = {
       await DriverPage.renderPerformance();
     } catch(e) {
       console.error('Erreur performances:', e);
-    }
-  },
-
-  async loadNextPlanning() {
-    const p = Auth.currentProfile;
-    const el = document.getElementById('driver-next-planning');
-    if (!el) return;
-
-    try {
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-
-      const { data: planning } = await supabase
-        .from('planning')
-        .select('*')
-        .eq('profile_id', p.id)
-        .gte('date', tomorrow)
-        .lte('date', weekEnd)
-        .order('date', { ascending: true });
-
-      if (!planning || planning.length === 0) return;
-
-      const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
-      const labels = { travail:'Travail', repos:'Repos', cut:'Cut', mad:'MAD' };
-      const colors = {
-        travail: 'background:#D1FAE5;color:#166534;',
-        repos:   'background:#F3F4F6;color:#6B7280;',
-        cut:     'background:#FEE2E2;color:#991B1B;',
-        mad:     'background:#DBEAFE;color:#1E40AF;',
-      };
-
-      el.innerHTML = `
-      <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:16px;">
-        <div style="font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:12px;">📅 Mes prochains jours</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${planning.map(p => {
-            const d = new Date(p.date);
-            const label = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
-            const style = colors[p.statut] || colors.repos;
-            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;${style}">
-              <span style="font-size:13px;font-weight:500;text-transform:capitalize;">${label}</span>
-              <span style="font-size:13px;font-weight:700;">${icons[p.statut]||''} ${labels[p.statut]||p.statut}</span>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`;
-    } catch(e) {
-      console.error('Erreur planning:', e);
     }
   },
 
