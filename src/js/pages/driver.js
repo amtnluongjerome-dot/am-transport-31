@@ -23,7 +23,6 @@ const DriverPage = {
 
     DriverPage.attribution = attr;
 
-    // Vérifie le planning du jour
     const { data: planningToday } = await supabase
       .from('planning')
       .select('*')
@@ -33,7 +32,6 @@ const DriverPage = {
 
     const statutPlanning = planningToday?.statut || null;
 
-    // Si pas travail → affiche écran spécial
     if (statutPlanning && statutPlanning !== 'travail') {
       document.getElementById('screen-driver').innerHTML = `
       <div class="topbar">
@@ -46,13 +44,14 @@ const DriverPage = {
       </div>
       <div class="driver-page">
         ${DriverPage.renderStatutSpecial(statutPlanning, p.full_name)}
+        <div id="driver-next-planning"></div>
+        <div id="driver-planning-section"></div>
         <div id="driver-perf-section"></div>
       </div>`;
       await DriverPage.loadPerformance(p.full_name);
       return;
     }
 
-    // Si travail ou pas de planning → affiche écran mission
     let { data: tournee } = await supabase
       .from('tournees')
       .select('*')
@@ -79,7 +78,6 @@ const DriverPage = {
     const vagueNum = attr?.vague;
     const vague = vagueNum === '1' ? '1ère vague — 12h10' : vagueNum === '2' ? '2ème vague — 12h20' : vagueNum === '3' ? '3ème vague' : null;
 
-    // Si départ pas encore accepté → écran mission
     const missionAccepted = DriverPage.statut !== 'depart' || sessionStorage.getItem('mission_accepted_' + today());
 
     document.getElementById('screen-driver').innerHTML = `
@@ -131,6 +129,7 @@ const DriverPage = {
 
       `}
 
+      <div id="driver-planning-section"></div>
       <div id="driver-perf-section"></div>
     </div>`;
 
@@ -140,7 +139,7 @@ const DriverPage = {
   renderMissionAccept(name) {
     return `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px;">
-      <div style="font-size:72px;margin-bottom:24px;animation:pulse 2s infinite;">🎯</div>
+      <div style="font-size:72px;margin-bottom:24px;">🎯</div>
       <div style="font-size:13px;text-transform:uppercase;letter-spacing:3px;color:#9CA3AF;margin-bottom:12px;">Message de votre responsable</div>
       <div style="font-size:28px;font-weight:800;color:#1a1a1a;margin-bottom:8px;line-height:1.3;">
         Bonjour ${name.split(' ')[0]} !
@@ -148,7 +147,7 @@ const DriverPage = {
       <div style="font-size:20px;font-weight:600;color:#374151;margin-bottom:32px;line-height:1.4;">
         Une mission t'attend...<br>si tu l'acceptes. 🚚
       </div>
-      <button onclick="DriverPage.acceptMission()" style="background:linear-gradient(135deg,#1a56db,#0e3fa0);color:#fff;border:none;border-radius:16px;padding:18px 48px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(26,86,219,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+      <button onclick="DriverPage.acceptMission()" style="background:linear-gradient(135deg,#1a56db,#0e3fa0);color:#fff;border:none;border-radius:16px;padding:18px 48px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(26,86,219,0.4);">
         ✅ J'accepte la mission !
       </button>
       <div style="margin-top:16px;font-size:12px;color:#9CA3AF;">Ce message s'autodétruira après votre tournée 💥</div>
@@ -188,7 +187,6 @@ const DriverPage = {
 
     const cfg = configs[statut] || configs['repos'];
 
-    // Planning des prochains jours
     return `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;padding:32px;">
       <div style="font-size:80px;margin-bottom:24px;">${cfg.emoji}</div>
@@ -196,7 +194,6 @@ const DriverPage = {
         <div style="font-size:24px;font-weight:800;color:${cfg.color};margin-bottom:12px;">${cfg.titre}</div>
         <div style="font-size:16px;color:${cfg.color};opacity:0.8;line-height:1.6;white-space:pre-line;">${cfg.message}</div>
       </div>
-      <div id="driver-next-planning" style="margin-top:24px;width:100%;max-width:480px;"></div>
     </div>`;
   },
 
@@ -204,8 +201,8 @@ const DriverPage = {
     const el = document.getElementById('driver-perf-section');
     if (!el) return;
 
-    // Charge aussi le planning des prochains jours
     await DriverPage.loadNextPlanning();
+    await DriverPage.loadPlanningDriver();
 
     try {
       const { data: semaines } = await supabase
@@ -245,17 +242,17 @@ const DriverPage = {
 
       if (!planning || planning.length === 0) return;
 
-      const icons = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
+      const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
       const labels = { travail:'Travail', repos:'Repos', cut:'Cut', mad:'MAD' };
       const colors = {
         travail: 'background:#D1FAE5;color:#166534;',
-        repos: 'background:#F3F4F6;color:#6B7280;',
-        cut: 'background:#FEE2E2;color:#991B1B;',
-        mad: 'background:#DBEAFE;color:#1E40AF;',
+        repos:   'background:#F3F4F6;color:#6B7280;',
+        cut:     'background:#FEE2E2;color:#991B1B;',
+        mad:     'background:#DBEAFE;color:#1E40AF;',
       };
 
       el.innerHTML = `
-      <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+      <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:16px;">
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:12px;">📅 Mes prochains jours</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${planning.map(p => {
@@ -271,6 +268,67 @@ const DriverPage = {
       </div>`;
     } catch(e) {
       console.error('Erreur planning:', e);
+    }
+  },
+
+  async loadPlanningDriver() {
+    const p = Auth.currentProfile;
+    const el = document.getElementById('driver-planning-section');
+    if (!el) return;
+
+    try {
+      const startDate = new Date();
+      const days = Array.from({length: 14}, (_, i) => {
+        const d = new Date(startDate.getTime() + i * 86400000);
+        return {
+          date: d.toISOString().split('T')[0],
+          label: d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'})
+        };
+      });
+
+      const { data: planning } = await supabase
+        .from('planning')
+        .select('*')
+        .eq('profile_id', p.id)
+        .gte('date', days[0].date)
+        .lte('date', days[13].date)
+        .order('date', { ascending: true });
+
+      const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
+      const labels = { travail:'Travail', repos:'Repos', cut:'Cut', mad:'MAD' };
+      const colors = {
+        travail: 'background:#D1FAE5;color:#166534;border:1px solid #A7F3D0;',
+        repos:   'background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB;',
+        cut:     'background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;',
+        mad:     'background:#DBEAFE;color:#1E40AF;border:1px solid #BFDBFE;',
+      };
+
+      const planningMap = {};
+      (planning||[]).forEach(entry => { planningMap[entry.date] = entry; });
+
+      el.innerHTML = `
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">📅 Mon planning — 14 prochains jours</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${days.map(d => {
+            const entry = planningMap[d.date];
+            const isToday = d.date === today();
+            if (!entry) return `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;background:#FAFAFA;border:1px solid #F3F4F6;${isToday ? 'border-left:4px solid #6B7280;' : ''}">
+                <span style="font-size:13px;color:#9CA3AF;text-transform:capitalize;">${isToday ? '👉 ' : ''}${d.label}</span>
+                <span style="font-size:12px;color:#D1D5DB;">—</span>
+              </div>`;
+            const style = colors[entry.statut] || colors.repos;
+            return `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;${style}${isToday ? 'outline:3px solid #1a1a1a;' : ''}">
+                <span style="font-size:13px;font-weight:${isToday ? '700' : '500'};text-transform:capitalize;">${isToday ? '👉 ' : ''}${d.label}</span>
+                <span style="font-size:14px;font-weight:700;">${icons[entry.statut]||''} ${labels[entry.statut]||entry.statut}</span>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    } catch(e) {
+      console.error('Erreur planning chauffeur:', e);
     }
   },
 
@@ -344,7 +402,6 @@ const DriverPage = {
           <div style="font-size:28px;font-weight:700;color:#1a1a1a;">${perf.moyenne ? Math.round(perf.moyenne * 100) / 100 : '—'}</div>
         </div>
       </div>
-
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
           <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📦 Colis livrés</div>
