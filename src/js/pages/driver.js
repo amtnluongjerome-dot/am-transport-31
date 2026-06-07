@@ -188,31 +188,11 @@ const DriverPage = {
     const prenom = name.split(' ')[0];
     const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
     const configs = {
-      repos: {
-        emoji: '😴',
-        titre: `${i18n.t('repos_title')} ${prenom} !`,
-        message: i18n.t('repos_msg'),
-        bg: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
-        color: '#166534',
-      },
-      cut: {
-        emoji: '⏳',
-        titre: `${i18n.t('cut_title')} ${prenom} !`,
-        message: i18n.t('cut_msg'),
-        bg: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)',
-        color: '#9A3412',
-      },
-      mad: {
-        emoji: '📲',
-        titre: `${i18n.t('mad_title')} ${prenom} !`,
-        message: i18n.t('mad_msg'),
-        bg: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)',
-        color: '#1E40AF',
-      },
+      repos: { emoji: '😴', titre: `${i18n.t('repos_title')} ${prenom} !`, message: i18n.t('repos_msg'), bg: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)', color: '#166534' },
+      cut:   { emoji: '⏳', titre: `${i18n.t('cut_title')} ${prenom} !`,   message: i18n.t('cut_msg'),   bg: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)', color: '#9A3412' },
+      mad:   { emoji: '📲', titre: `${i18n.t('mad_title')} ${prenom} !`,   message: i18n.t('mad_msg'),   bg: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)', color: '#1E40AF' },
     };
-
     const cfg = configs[statut] || configs['repos'];
-
     return `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;padding:32px;direction:${dir};">
       <div style="font-size:80px;margin-bottom:24px;">${cfg.emoji}</div>
@@ -235,7 +215,10 @@ const DriverPage = {
         .select('semaine')
         .order('semaine', { ascending: false });
 
-      if (!semaines || semaines.length === 0) return;
+      if (!semaines || semaines.length === 0) {
+        el.insertAdjacentHTML('beforeend', DriverPage.renderChangePwd());
+        return;
+      }
 
       const uniqueSemaines = [...new Set(semaines.map(s => s.semaine))];
       DriverPage._semaines = uniqueSemaines;
@@ -246,6 +229,8 @@ const DriverPage = {
     } catch(e) {
       console.error('Erreur performances:', e);
     }
+
+    el.insertAdjacentHTML('beforeend', DriverPage.renderChangePwd());
   },
 
   async loadPlanningDriver() {
@@ -264,12 +249,8 @@ const DriverPage = {
       });
 
       const { data: planning } = await supabase
-        .from('planning')
-        .select('*')
-        .eq('profile_id', p.id)
-        .gte('date', days[0].date)
-        .lte('date', days[6].date)
-        .order('date', { ascending: true });
+        .from('planning').select('*').eq('profile_id', p.id)
+        .gte('date', days[0].date).lte('date', days[6].date).order('date', { ascending: true });
 
       const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
       const colors = {
@@ -321,11 +302,8 @@ const DriverPage = {
     const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
 
     const { data: perf } = await supabase
-      .from('performance_semaines')
-      .select('*')
-      .eq('semaine', semaine)
-      .ilike('nom_prenom', `%${fullName}%`)
-      .maybeSingle();
+      .from('performance_semaines').select('*').eq('semaine', semaine)
+      .ilike('nom_prenom', `%${fullName}%`).maybeSingle();
 
     const statutBadge = (s) => {
       const map = {
@@ -338,25 +316,9 @@ const DriverPage = {
       return map[s] || `<span class="badge b-gray">${s || '—'}</span>`;
     };
 
-    const pctColor = (v) => {
-      if (v === null || v === undefined) return 'color:#9CA3AF';
-      const n = parseFloat(v) > 2 ? parseFloat(v) : parseFloat(v) * 100;
-      if (n >= 99) return 'color:#1E7E34;font-weight:700';
-      if (n >= 97) return 'color:#92400E;font-weight:700';
-      return 'color:#B91C1C;font-weight:700';
-    };
-
-    const numColor = (v) => {
-      if (v === null || v === undefined) return 'color:#9CA3AF';
-      return parseFloat(v) === 0 ? 'color:#1E7E34;font-weight:700' : 'color:#B91C1C;font-weight:700';
-    };
-
-    const fmtPct = (v) => {
-      if (v === null || v === undefined) return '—';
-      const n = parseFloat(v);
-      if (isNaN(n)) return '—';
-      return n > 2 ? n.toFixed(2) + '%' : (n * 100).toFixed(2) + '%';
-    };
+    const pctColor = (v) => { if (v === null || v === undefined) return 'color:#9CA3AF'; const n = parseFloat(v) > 2 ? parseFloat(v) : parseFloat(v) * 100; if (n >= 99) return 'color:#1E7E34;font-weight:700'; if (n >= 97) return 'color:#92400E;font-weight:700'; return 'color:#B91C1C;font-weight:700'; };
+    const numColor = (v) => { if (v === null || v === undefined) return 'color:#9CA3AF'; return parseFloat(v) === 0 ? 'color:#1E7E34;font-weight:700' : 'color:#B91C1C;font-weight:700'; };
+    const fmtPct = (v) => { if (v === null || v === undefined) return '—'; const n = parseFloat(v); if (isNaN(n)) return '—'; return n > 2 ? n.toFixed(2) + '%' : (n * 100).toFixed(2) + '%'; };
 
     const hasPrev = idx < semaines.length - 1;
     const hasNext = idx > 0;
@@ -371,7 +333,6 @@ const DriverPage = {
           <button class="btn sm" onclick="DriverPage._semaineIdx--;DriverPage.renderPerformance()" ${!hasNext?'disabled':''} style="font-size:16px;padding:4px 10px;">▶</button>
         </div>
       </div>
-
       ${!perf ? `<p class="text-muted text-sm">${i18n.t('no_perf')} ${semaine}.</p>` : `
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
         <div style="font-size:32px;font-weight:800;color:#1a1a1a;">#${perf.classement}<span style="font-size:16px;color:#9CA3AF;font-weight:400;">/${perf.total_chauffeurs}</span></div>
@@ -382,41 +343,55 @@ const DriverPage = {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('colis_livres')}</div>
-          <div style="font-size:20px;font-weight:700;">${perf.colis_livres ?? '—'}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('reussite')}</div>
-          <div style="font-size:20px;font-weight:700;${pctColor(perf.reussite_livraison_pct)}">${fmtPct(perf.reussite_livraison_pct)}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('remboursement')}</div>
-          <div style="font-size:20px;font-weight:700;${numColor(perf.remboursement_colis)}">${perf.remboursement_colis ?? '—'}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('lor')}</div>
-          <div style="font-size:20px;font-weight:700;${numColor(perf.lor_dpmo)}">${perf.lor_dpmo ?? '—'}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('photo')}</div>
-          <div style="font-size:20px;font-weight:700;${pctColor(perf.photo_pct)}">${fmtPct(perf.photo_pct)}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('contact')}</div>
-          <div style="font-size:20px;font-weight:700;${pctColor(perf.contact_pct)}">${fmtPct(perf.contact_pct)}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('plainte')}</div>
-          <div style="font-size:20px;font-weight:700;${numColor(perf.plainte_client)}">${perf.plainte_client ?? '—'}</div>
-        </div>
-        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('note')}</div>
-          <div style="font-size:20px;font-weight:700;">${perf.note_client ?? '—'}</div>
-        </div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('colis_livres')}</div><div style="font-size:20px;font-weight:700;">${perf.colis_livres ?? '—'}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('reussite')}</div><div style="font-size:20px;font-weight:700;${pctColor(perf.reussite_livraison_pct)}">${fmtPct(perf.reussite_livraison_pct)}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('remboursement')}</div><div style="font-size:20px;font-weight:700;${numColor(perf.remboursement_colis)}">${perf.remboursement_colis ?? '—'}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('lor')}</div><div style="font-size:20px;font-weight:700;${numColor(perf.lor_dpmo)}">${perf.lor_dpmo ?? '—'}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('photo')}</div><div style="font-size:20px;font-weight:700;${pctColor(perf.photo_pct)}">${fmtPct(perf.photo_pct)}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('contact')}</div><div style="font-size:20px;font-weight:700;${pctColor(perf.contact_pct)}">${fmtPct(perf.contact_pct)}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('plainte')}</div><div style="font-size:20px;font-weight:700;${numColor(perf.plainte_client)}">${perf.plainte_client ?? '—'}</div></div>
+        <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('note')}</div><div style="font-size:20px;font-weight:700;">${perf.note_client ?? '—'}</div></div>
       </div>
       `}
     </div>`;
+  },
+
+  renderChangePwd() {
+    return `
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">🔑 Changer mon mot de passe</div>
+      <div class="form-row">
+        <label class="form-label">Nouveau mot de passe</label>
+        <input class="form-input" type="password" id="new-pwd" placeholder="Min. 8 caractères">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Confirmer le mot de passe</label>
+        <input class="form-input" type="password" id="new-pwd2" placeholder="Répète ton mot de passe">
+      </div>
+      <div class="flex-end">
+        <button class="btn primary" id="btn-change-pwd" onclick="DriverPage.changePassword()">✓ Mettre à jour</button>
+      </div>
+    </div>`;
+  },
+
+  async changePassword() {
+    const pwd1 = document.getElementById('new-pwd').value;
+    const pwd2 = document.getElementById('new-pwd2').value;
+    if (pwd1.length < 8) return toast('Le mot de passe doit faire au moins 8 caractères.');
+    if (pwd1 !== pwd2) return toast('Les mots de passe ne correspondent pas.');
+    const btn = document.getElementById('btn-change-pwd');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const { error } = await supabase.auth.updateUser({ password: pwd1 });
+    if (error) {
+      toast('Erreur : ' + error.message);
+    } else {
+      toast('Mot de passe mis à jour ✓');
+      document.getElementById('new-pwd').value = '';
+      document.getElementById('new-pwd2').value = '';
+    }
+    btn.disabled = false;
+    btn.innerHTML = '✓ Mettre à jour';
   },
 
   getStatutBadge(statut) {
@@ -553,29 +528,20 @@ const DriverPage = {
   async submitDepart() {
     const km = document.getElementById('km-depart').value;
     if (!km) return toast(i18n.t('km_required'));
-
     const btn = document.getElementById('btn-depart');
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> ${i18n.t('sending')}`;
-
     try {
       let photoUrl = null, mobilicUrl = null;
       const camionFile = document.getElementById('f-camion-m').files[0];
       const mobilicFile = document.getElementById('f-mobilic-m').files[0];
       if (camionFile)  photoUrl   = await uploadPhoto(camionFile,  `matin/${Auth.currentProfile.id}`);
       if (mobilicFile) mobilicUrl = await uploadPhoto(mobilicFile, `mobilic_matin/${Auth.currentProfile.id}`);
-
       const remarques = document.getElementById('remarques-depart').value;
-
       await supabase.from('tournees').update({
-        km_depart: parseInt(km),
-        photo_camion_matin:  photoUrl,
-        photo_mobilic_matin: mobilicUrl,
-        remarques_depart: remarques,
-        heure_depart: new Date().toTimeString().slice(0,8),
-        statut: 'en_tournee'
+        km_depart: parseInt(km), photo_camion_matin: photoUrl, photo_mobilic_matin: mobilicUrl,
+        remarques_depart: remarques, heure_depart: new Date().toTimeString().slice(0,8), statut: 'en_tournee'
       }).eq('id', DriverPage.tourneeId);
-
       document.getElementById('step-depart').style.display = 'none';
       document.getElementById('step-retour').style.display = 'block';
       document.getElementById('step-matin-btn').className = 'step-item done';
@@ -593,37 +559,26 @@ const DriverPage = {
   async submitRetour() {
     const km = document.getElementById('km-retour').value;
     if (!km) return toast(i18n.t('km_retour_required'));
-
     const { data: t } = await supabase.from('tournees').select('km_depart').eq('id', DriverPage.tourneeId).maybeSingle();
     if (t?.km_depart && parseInt(km) <= t.km_depart) return toast(i18n.t('km_retour_error'));
-
     const btn = document.getElementById('btn-retour');
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> ${i18n.t('closing')}`;
-
     try {
       let photoUrl = null, mobilicUrl = null;
       const camionFile = document.getElementById('f-camion-s').files[0];
       const mobilicFile = document.getElementById('f-mobilic-s').files[0];
       if (camionFile)  photoUrl   = await uploadPhoto(camionFile,  `soir/${Auth.currentProfile.id}`);
       if (mobilicFile) mobilicUrl = await uploadPhoto(mobilicFile, `mobilic_soir/${Auth.currentProfile.id}`);
-
       const remarques = document.getElementById('remarques-retour').value;
-
       await supabase.from('tournees').update({
-        km_retour: parseInt(km),
-        photo_camion_soir:  photoUrl,
-        photo_mobilic_soir: mobilicUrl,
-        remarques_retour: remarques,
-        heure_retour: new Date().toTimeString().slice(0,8),
-        statut: 'cloture'
+        km_retour: parseInt(km), photo_camion_soir: photoUrl, photo_mobilic_soir: mobilicUrl,
+        remarques_retour: remarques, heure_retour: new Date().toTimeString().slice(0,8), statut: 'cloture'
       }).eq('id', DriverPage.tourneeId);
-
       document.getElementById('step-retour').style.display = 'none';
       document.getElementById('step-cloture').style.display = 'block';
       document.getElementById('step-soir-btn').className = 'step-item done';
       document.getElementById('statut-badge').innerHTML = `<span class="badge b-green">${i18n.t('statut_cloture')}</span>`;
-
       const { data: updated } = await supabase.from('tournees').select('*').eq('id', DriverPage.tourneeId).maybeSingle();
       document.getElementById('step-cloture').innerHTML = DriverPage.renderCloture(updated);
       toast('✓');
