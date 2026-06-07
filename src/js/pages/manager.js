@@ -1155,7 +1155,7 @@ const ManagerPage = {
         <div style="display:flex;gap:8px;align-items:center;">
           <input class="form-input" type="text" id="invite-link" readonly style="font-size:11px;font-family:monospace;background:#F9FAFB;flex:1;">
           <button class="btn sm" onclick="ManagerPage.copyInviteLink()" style="white-space:nowrap;">📋 Copier</button>
-          <button class="btn sm" id="btn-whatsapp" style="background:#25D366;color:#fff;border-color:#25D366;white-space:nowrap;" onclick="ManagerPage.sendWhatsApp()">WhatsApp</button>
+          <button class="btn sm" style="background:#25D366;color:#fff;border-color:#25D366;white-space:nowrap;" onclick="ManagerPage.sendWhatsApp()">WhatsApp</button>
         </div>
         <div style="font-size:11px;color:#9CA3AF;margin-top:6px;">⏱ Expire dans 48h — à usage unique</div>
       </div>
@@ -1218,8 +1218,9 @@ const ManagerPage = {
       ManagerPage._currentInviteName = name;
 
       const resultEl = document.getElementById('invite-result');
-      if (resultEl) {
-        document.getElementById('invite-link').value = link;
+      const linkInput = document.getElementById('invite-link');
+      if (resultEl && linkInput) {
+        linkInput.value = link;
         resultEl.style.display = 'block';
       }
 
