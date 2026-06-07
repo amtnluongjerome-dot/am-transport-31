@@ -39,7 +39,8 @@ const DriverPage = {
         <div class="user-pill">
           <div class="av-sm" style="background:${c.bg};color:${c.color};">${initials(p.full_name)}</div>
           <span>${p.full_name}</span>
-          <button class="btn-link" onclick="App.logout()" style="margin-left:10px;">⬅ Déconnexion</button>
+          ${DriverPage.renderLangSelector()}
+          <button class="btn-link" onclick="App.logout()" style="margin-left:10px;">${i18n.t('logout')}</button>
         </div>
       </div>
       <div class="driver-page">
@@ -75,7 +76,7 @@ const DriverPage = {
     const plaque = attr?.plaque || null;
     const tpRef = attr?.telepeage_badges?.reference || null;
     const vagueNum = attr?.vague;
-    const vague = vagueNum === '1' ? '1ère vague — 12h10' : vagueNum === '2' ? '2ème vague — 12h20' : vagueNum === '3' ? '3ème vague' : null;
+    const vague = vagueNum === '1' ? i18n.t('vague_1') : vagueNum === '2' ? i18n.t('vague_2') : vagueNum === '3' ? i18n.t('vague_3') : null;
 
     const missionAccepted = DriverPage.statut !== 'depart' || sessionStorage.getItem('mission_accepted_' + today());
 
@@ -85,32 +86,33 @@ const DriverPage = {
       <div class="user-pill">
         <div class="av-sm" style="background:${c.bg};color:${c.color};">${initials(p.full_name)}</div>
         <span>${p.full_name}</span>
-        <button class="btn-link" onclick="App.logout()" style="margin-left:10px;">⬅ Déconnexion</button>
+        ${DriverPage.renderLangSelector()}
+        <button class="btn-link" onclick="App.logout()" style="margin-left:10px;">${i18n.t('logout')}</button>
       </div>
     </div>
     <div class="driver-page">
 
       ${!missionAccepted ? DriverPage.renderMissionAccept(p.full_name) : `
 
-      ${!plaque ? `<div class="notif warn" style="margin-bottom:14px;">⚠️ Aucun véhicule attribué aujourd'hui. Contactez votre responsable.</div>` : ''}
+      ${!plaque ? `<div class="notif warn" style="margin-bottom:14px;">${i18n.t('no_vehicle_warn')}</div>` : ''}
 
       <div class="vehicle-banner">
         <div class="vb-item">
-          <label>🚛 Votre camion aujourd'hui</label>
-          ${plaque ? `<div class="plate">${plaque}</div>` : '<span class="badge b-red">Non attribué</span>'}
+          <label>${i18n.t('vehicle_today')}</label>
+          ${plaque ? `<div class="plate">${plaque}</div>` : `<span class="badge b-red">${i18n.t('not_assigned')}</span>`}
         </div>
-        ${tpRef ? `<div class="vb-item"><label>💳 Badge télépéage</label><div class="tp-tag">${tpRef}</div></div>` : ''}
-        <div class="vb-item"><label>📍 Route</label>${routeBadge(route)}</div>
-        ${vague ? `<div class="vb-item"><label>🕐 Vague</label><span class="badge b-amber" style="font-size:12px;padding:4px 10px;">${vague}</span></div>` : ''}
+        ${tpRef ? `<div class="vb-item"><label>${i18n.t('badge_telepeage')}</label><div class="tp-tag">${tpRef}</div></div>` : ''}
+        <div class="vb-item"><label>${i18n.t('route')}</label>${routeBadge(route)}</div>
+        ${vague ? `<div class="vb-item"><label>${i18n.t('vague')}</label><span class="badge b-amber" style="font-size:12px;padding:4px 10px;">${vague}</span></div>` : ''}
         <div class="vb-item" style="margin-left:auto;">
-          <label>Statut</label>
+          <label>${i18n.t('statut')}</label>
           <div id="statut-badge">${DriverPage.getStatutBadge(DriverPage.statut)}</div>
         </div>
       </div>
 
       <div class="step-bar">
-        <div class="step-item ${DriverPage.statut === 'depart' ? 'active' : 'done'}" id="step-matin-btn">☀️ Matin — Départ</div>
-        <div class="step-item ${DriverPage.statut === 'en_tournee' ? 'active' : DriverPage.statut === 'cloture' ? 'done' : ''}" id="step-soir-btn">🌙 Soir — Retour</div>
+        <div class="step-item ${DriverPage.statut === 'depart' ? 'active' : 'done'}" id="step-matin-btn">${i18n.t('step_matin')}</div>
+        <div class="step-item ${DriverPage.statut === 'en_tournee' ? 'active' : DriverPage.statut === 'cloture' ? 'done' : ''}" id="step-soir-btn">${i18n.t('step_soir')}</div>
       </div>
 
       <div id="step-depart" style="display:${DriverPage.statut === 'depart' ? 'block' : 'none'};">
@@ -135,21 +137,45 @@ const DriverPage = {
     await DriverPage.loadPerformance(p.full_name);
   },
 
-  renderMissionAccept(name) {
+  renderLangSelector() {
+    const langs = [
+      { code: 'fr', label: '🇫🇷' },
+      { code: 'en', label: '🇬🇧' },
+      { code: 'es', label: '🇪🇸' },
+      { code: 'ar', label: '🇸🇦' },
+    ];
     return `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px;">
+    <div style="display:flex;gap:4px;margin-left:8px;">
+      ${langs.map(l => `
+        <button onclick="DriverPage.changeLang('${l.code}')"
+          style="padding:3px 7px;border-radius:6px;border:1px solid ${i18n.current === l.code ? '#1a56db' : '#E5E7EB'};background:${i18n.current === l.code ? '#EFF6FF' : '#fff'};cursor:pointer;font-size:14px;line-height:1;">
+          ${l.label}
+        </button>
+      `).join('')}
+    </div>`;
+  },
+
+  changeLang(lang) {
+    i18n.set(lang);
+    DriverPage.init();
+  },
+
+  renderMissionAccept(name) {
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
+    return `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px;direction:${dir};">
       <div style="font-size:72px;margin-bottom:24px;">🎯</div>
-      <div style="font-size:13px;text-transform:uppercase;letter-spacing:3px;color:#9CA3AF;margin-bottom:12px;">Message de votre responsable</div>
+      <div style="font-size:13px;text-transform:uppercase;letter-spacing:3px;color:#9CA3AF;margin-bottom:12px;">${i18n.t('mission_from')}</div>
       <div style="font-size:28px;font-weight:800;color:#1a1a1a;margin-bottom:8px;line-height:1.3;">
-        Bonjour ${name.split(' ')[0]} !
+        ${i18n.t('mission_greeting')} ${name.split(' ')[0]} !
       </div>
-      <div style="font-size:20px;font-weight:600;color:#374151;margin-bottom:32px;line-height:1.4;">
-        Une mission t'attend...<br>si tu l'acceptes. 🚚
+      <div style="font-size:20px;font-weight:600;color:#374151;margin-bottom:32px;line-height:1.4;white-space:pre-line;">
+        ${i18n.t('mission_text')}
       </div>
       <button onclick="DriverPage.acceptMission()" style="background:linear-gradient(135deg,#1a56db,#0e3fa0);color:#fff;border:none;border-radius:16px;padding:18px 48px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(26,86,219,0.4);">
-        ✅ J'accepte la mission !
+        ${i18n.t('mission_btn')}
       </button>
-      <div style="margin-top:16px;font-size:12px;color:#9CA3AF;">Ce message s'autodétruira après votre tournée 💥</div>
+      <div style="margin-top:16px;font-size:12px;color:#9CA3AF;">${i18n.t('mission_autodestruct')}</div>
     </div>`;
   },
 
@@ -160,25 +186,26 @@ const DriverPage = {
 
   renderStatutSpecial(statut, name) {
     const prenom = name.split(' ')[0];
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
     const configs = {
       repos: {
         emoji: '😴',
-        titre: `Repose-toi bien ${prenom} !`,
-        message: 'Profite de ta journée, recharge les batteries 🔋\nLa route peut attendre !',
+        titre: `${i18n.t('repos_title')} ${prenom} !`,
+        message: i18n.t('repos_msg'),
         bg: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
         color: '#166534',
       },
       cut: {
         emoji: '⏳',
-        titre: `Reste dans le coin ${prenom} !`,
-        message: 'Tu pourrais être rappelé à tout moment... ✂️\nGarde ton téléphone près de toi !',
+        titre: `${i18n.t('cut_title')} ${prenom} !`,
+        message: i18n.t('cut_msg'),
         bg: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)',
         color: '#9A3412',
       },
       mad: {
         emoji: '📲',
-        titre: `En attente de mission ${prenom} !`,
-        message: 'Tiens-toi prêt, on peut t\'appeler à tout moment 🔵\nReste disponible et réactif !',
+        titre: `${i18n.t('mad_title')} ${prenom} !`,
+        message: i18n.t('mad_msg'),
         bg: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)',
         color: '#1E40AF',
       },
@@ -187,7 +214,7 @@ const DriverPage = {
     const cfg = configs[statut] || configs['repos'];
 
     return `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;padding:32px;">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;padding:32px;direction:${dir};">
       <div style="font-size:80px;margin-bottom:24px;">${cfg.emoji}</div>
       <div style="background:${cfg.bg};border-radius:24px;padding:32px 40px;max-width:480px;width:100%;">
         <div style="font-size:24px;font-weight:800;color:${cfg.color};margin-bottom:12px;">${cfg.titre}</div>
@@ -232,7 +259,7 @@ const DriverPage = {
         const d = new Date(startDate.getTime() + i * 86400000);
         return {
           date: d.toISOString().split('T')[0],
-          label: d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'})
+          label: d.toLocaleDateString(i18n.current === 'ar' ? 'ar-SA' : i18n.current === 'es' ? 'es-ES' : i18n.current === 'en' ? 'en-GB' : 'fr-FR', {weekday:'long', day:'numeric', month:'long'})
         };
       });
 
@@ -245,7 +272,6 @@ const DriverPage = {
         .order('date', { ascending: true });
 
       const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
-      const labels = { travail:'Travail', repos:'Repos', cut:'Cut', mad:'MAD' };
       const colors = {
         travail: 'background:#D1FAE5;color:#166534;border:1px solid #A7F3D0;',
         repos:   'background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB;',
@@ -256,9 +282,11 @@ const DriverPage = {
       const planningMap = {};
       (planning||[]).forEach(entry => { planningMap[entry.date] = entry; });
 
+      const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
+
       el.innerHTML = `
-      <div class="card" style="margin-top:16px;">
-        <div class="card-title">📅 Mon planning — 7 prochains jours</div>
+      <div class="card" style="margin-top:16px;direction:${dir};">
+        <div class="card-title">${i18n.t('planning_title')}</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${days.map(d => {
             const entry = planningMap[d.date];
@@ -266,13 +294,13 @@ const DriverPage = {
             if (!entry) return `
               <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;background:#FAFAFA;border:1px solid #F3F4F6;${isToday ? 'border-left:4px solid #6B7280;' : ''}">
                 <span style="font-size:13px;color:#9CA3AF;text-transform:capitalize;">${isToday ? '👉 ' : ''}${d.label}</span>
-                <span style="font-size:12px;color:#D1D5DB;">—</span>
+                <span style="font-size:12px;color:#D1D5DB;">${i18n.t('not_planned')}</span>
               </div>`;
             const style = colors[entry.statut] || colors.repos;
             return `
               <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;${style}${isToday ? 'outline:3px solid #1a1a1a;' : ''}">
                 <span style="font-size:13px;font-weight:${isToday ? '700' : '500'};text-transform:capitalize;">${isToday ? '👉 ' : ''}${d.label}</span>
-                <span style="font-size:14px;font-weight:700;">${icons[entry.statut]||''} ${labels[entry.statut]||entry.statut}</span>
+                <span style="font-size:14px;font-weight:700;">${icons[entry.statut]||''} ${i18n.t(entry.statut)}</span>
               </div>`;
           }).join('')}
         </div>
@@ -290,6 +318,7 @@ const DriverPage = {
     const idx = DriverPage._semaineIdx;
     const semaine = semaines[idx];
     const fullName = DriverPage._perfName;
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
 
     const { data: perf } = await supabase
       .from('performance_semaines')
@@ -333,9 +362,9 @@ const DriverPage = {
     const hasNext = idx > 0;
 
     el.innerHTML = `
-    <div class="card" style="margin-top:16px;">
+    <div class="card" style="margin-top:16px;direction:${dir};">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div class="card-title" style="margin:0;">🏆 Mes performances</div>
+        <div class="card-title" style="margin:0;">${i18n.t('perf_title')}</div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button class="btn sm" onclick="DriverPage._semaineIdx++;DriverPage.renderPerformance()" ${!hasPrev?'disabled':''} style="font-size:16px;padding:4px 10px;">◀</button>
           <span style="font-weight:600;font-size:14px;min-width:40px;text-align:center;">${semaine}</span>
@@ -343,46 +372,46 @@ const DriverPage = {
         </div>
       </div>
 
-      ${!perf ? `<p class="text-muted text-sm">Aucune donnée disponible pour ${semaine}.</p>` : `
+      ${!perf ? `<p class="text-muted text-sm">${i18n.t('no_perf')} ${semaine}.</p>` : `
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
         <div style="font-size:32px;font-weight:800;color:#1a1a1a;">#${perf.classement}<span style="font-size:16px;color:#9CA3AF;font-weight:400;">/${perf.total_chauffeurs}</span></div>
         ${statutBadge(perf.statut)}
         <div style="margin-left:auto;text-align:right;">
-          <div style="font-size:11px;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px;">Score moyen</div>
+          <div style="font-size:11px;color:#9CA3AF;text-transform:uppercase;letter-spacing:1px;">${i18n.t('score_moyen')}</div>
           <div style="font-size:28px;font-weight:700;color:#1a1a1a;">${perf.moyenne ? Math.round(perf.moyenne * 100) / 100 : '—'}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📦 Colis livrés</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('colis_livres')}</div>
           <div style="font-size:20px;font-weight:700;">${perf.colis_livres ?? '—'}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">✅ Réussite livraison</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('reussite')}</div>
           <div style="font-size:20px;font-weight:700;${pctColor(perf.reussite_livraison_pct)}">${fmtPct(perf.reussite_livraison_pct)}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">💸 Remboursement</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('remboursement')}</div>
           <div style="font-size:20px;font-weight:700;${numColor(perf.remboursement_colis)}">${perf.remboursement_colis ?? '—'}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">🛣️ LOR DPMO</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('lor')}</div>
           <div style="font-size:20px;font-weight:700;${numColor(perf.lor_dpmo)}">${perf.lor_dpmo ?? '—'}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📸 Photo</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('photo')}</div>
           <div style="font-size:20px;font-weight:700;${pctColor(perf.photo_pct)}">${fmtPct(perf.photo_pct)}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">📞 Contact</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('contact')}</div>
           <div style="font-size:20px;font-weight:700;${pctColor(perf.contact_pct)}">${fmtPct(perf.contact_pct)}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">⚠️ Plainte client</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('plainte')}</div>
           <div style="font-size:20px;font-weight:700;${numColor(perf.plainte_client)}">${perf.plainte_client ?? '—'}</div>
         </div>
         <div style="background:#F9FAFB;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">⭐ Note client</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-bottom:4px;">${i18n.t('note')}</div>
           <div style="font-size:20px;font-weight:700;">${perf.note_client ?? '—'}</div>
         </div>
       </div>
@@ -391,47 +420,48 @@ const DriverPage = {
   },
 
   getStatutBadge(statut) {
-    if (statut === 'depart')     return '<span class="badge b-blue">Départ à enregistrer</span>';
-    if (statut === 'en_tournee') return '<span class="badge b-amber">En tournée</span>';
-    if (statut === 'cloture')    return '<span class="badge b-green">Clôturé ✓</span>';
+    if (statut === 'depart')     return `<span class="badge b-blue">${i18n.t('statut_depart')}</span>`;
+    if (statut === 'en_tournee') return `<span class="badge b-amber">${i18n.t('statut_en_tournee')}</span>`;
+    if (statut === 'cloture')    return `<span class="badge b-green">${i18n.t('statut_cloture')}</span>`;
     return '<span class="badge b-gray">—</span>';
   },
 
   renderMatinForm(t) {
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
     return `
-    <div class="card">
-      <div class="card-title">☀️ Début de tournée — Matin</div>
+    <div class="card" style="direction:${dir};">
+      <div class="card-title">${i18n.t('matin_title')}</div>
       <div class="form-row">
-        <label class="form-label">Kilométrage de départ (compteur)</label>
-        <input class="form-input" type="number" id="km-depart" placeholder="Ex: 45 230" value="${t?.km_depart || ''}">
+        <label class="form-label">${i18n.t('km_depart_label')}</label>
+        <input class="form-input" type="number" id="km-depart" placeholder="${i18n.t('km_depart_placeholder')}" value="${t?.km_depart || ''}">
       </div>
       <div class="grid-2" style="margin-top:6px;">
         <div>
-          <label class="form-label">📸 Photo du camion (état départ)</label>
+          <label class="form-label">${i18n.t('photo_camion_matin')}</label>
           <div class="photo-zone" onclick="document.getElementById('f-camion-m').click()">
             <span class="pz-icon">📷</span>
-            Appuyer pour photographier
+            ${i18n.t('photo_camion_btn')}
             <input type="file" id="f-camion-m" accept="image/*" style="display:none" capture="environment" onchange="DriverPage.previewPhoto(this,'prev-camion-m')">
           </div>
           <div class="photo-thumbs" id="prev-camion-m"></div>
         </div>
         <div>
-          <label class="form-label">📋 Capture Mobilic (début)</label>
+          <label class="form-label">${i18n.t('mobilic_matin')}</label>
           <div class="photo-zone" onclick="document.getElementById('f-mobilic-m').click()">
             <span class="pz-icon">📱</span>
-            Importer capture écran
+            ${i18n.t('mobilic_btn')}
             <input type="file" id="f-mobilic-m" accept="image/*" style="display:none" onchange="DriverPage.previewPhoto(this,'prev-mobilic-m')">
           </div>
           <div class="photo-thumbs" id="prev-mobilic-m"></div>
         </div>
       </div>
       <div class="form-row" style="margin-top:12px;">
-        <label class="form-label">Remarques départ (optionnel)</label>
-        <input class="form-input" type="text" id="remarques-depart" placeholder="RAS ou description d'un problème..." value="${t?.remarques_depart || ''}">
+        <label class="form-label">${i18n.t('remarques_depart')}</label>
+        <input class="form-input" type="text" id="remarques-depart" placeholder="${i18n.t('remarques_placeholder')}" value="${t?.remarques_depart || ''}">
       </div>
       <div class="flex-end">
         <button class="btn success" id="btn-depart" onclick="DriverPage.submitDepart()">
-          ✈️ Enregistrer le départ
+          ${i18n.t('btn_depart')}
         </button>
       </div>
     </div>`;
@@ -443,9 +473,9 @@ const DriverPage = {
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:22px;">✅</span>
         <div>
-          <div style="font-size:13px;font-weight:600;color:var(--green);">Départ enregistré avec succès</div>
+          <div style="font-size:13px;font-weight:600;color:var(--green);">${i18n.t('depart_ok')}</div>
           <div class="text-sm" style="color:#639922;margin-top:2px;">
-            Km départ : ${t?.km_depart ? fmtNum(t.km_depart) : '—'} · Photos matin transmises
+            ${i18n.t('km_depart_info')} : ${t?.km_depart ? fmtNum(t.km_depart) : '—'} · ${i18n.t('photos_sent')}
           </div>
         </div>
       </div>
@@ -453,40 +483,41 @@ const DriverPage = {
   },
 
   renderSoirForm() {
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
     return `
-    <div class="card">
-      <div class="card-title">🌙 Fin de tournée — Soir</div>
+    <div class="card" style="direction:${dir};">
+      <div class="card-title">${i18n.t('soir_title')}</div>
       <div class="form-row">
-        <label class="form-label">Kilométrage de retour (compteur)</label>
-        <input class="form-input" type="number" id="km-retour" placeholder="Ex: 45 458">
+        <label class="form-label">${i18n.t('km_retour_label')}</label>
+        <input class="form-input" type="number" id="km-retour" placeholder="${i18n.t('km_retour_placeholder')}">
       </div>
       <div class="grid-2" style="margin-top:6px;">
         <div>
-          <label class="form-label">📸 Photo du camion (état retour)</label>
+          <label class="form-label">${i18n.t('photo_camion_soir')}</label>
           <div class="photo-zone" onclick="document.getElementById('f-camion-s').click()">
             <span class="pz-icon">📷</span>
-            Appuyer pour photographier
+            ${i18n.t('photo_camion_btn')}
             <input type="file" id="f-camion-s" accept="image/*" style="display:none" capture="environment" onchange="DriverPage.previewPhoto(this,'prev-camion-s')">
           </div>
           <div class="photo-thumbs" id="prev-camion-s"></div>
         </div>
         <div>
-          <label class="form-label">📋 Capture Mobilic (fin)</label>
+          <label class="form-label">${i18n.t('mobilic_soir')}</label>
           <div class="photo-zone" onclick="document.getElementById('f-mobilic-s').click()">
             <span class="pz-icon">📱</span>
-            Importer capture écran
+            ${i18n.t('mobilic_btn')}
             <input type="file" id="f-mobilic-s" accept="image/*" style="display:none" onchange="DriverPage.previewPhoto(this,'prev-mobilic-s')">
           </div>
           <div class="photo-thumbs" id="prev-mobilic-s"></div>
         </div>
       </div>
       <div class="form-row" style="margin-top:12px;">
-        <label class="form-label">Remarques retour (optionnel)</label>
-        <input class="form-input" type="text" id="remarques-retour" placeholder="Incidents, dégâts, livraisons non effectuées...">
+        <label class="form-label">${i18n.t('remarques_retour')}</label>
+        <input class="form-input" type="text" id="remarques-retour" placeholder="${i18n.t('remarques_retour_placeholder')}">
       </div>
       <div class="flex-end">
         <button class="btn primary" id="btn-retour" onclick="DriverPage.submitRetour()">
-          🔒 Clôturer la tournée
+          ${i18n.t('btn_retour')}
         </button>
       </div>
     </div>`;
@@ -494,16 +525,17 @@ const DriverPage = {
 
   renderCloture(t) {
     const km = t?.km_retour && t?.km_depart ? t.km_retour - t.km_depart : null;
+    const dir = i18n.current === 'ar' ? 'rtl' : 'ltr';
     return `
-    <div class="success-card">
+    <div class="success-card" style="direction:${dir};">
       <span class="success-icon">✅</span>
-      <div style="font-size:18px;font-weight:600;color:var(--green);margin-bottom:8px;">Tournée clôturée !</div>
+      <div style="font-size:18px;font-weight:600;color:var(--green);margin-bottom:8px;">${i18n.t('cloture_title')}</div>
       <div class="text-sm" style="color:#639922;">
         ${DriverPage.attribution?.plaque ? DriverPage.attribution.plaque+' · ' : ''}
-        ${km !== null ? km+' km parcourus · ' : ''}
-        4 photos transmises
+        ${km !== null ? km+' '+i18n.t('km_parcourus')+' · ' : ''}
+        4 ${i18n.t('photos_transmises')}
       </div>
-      <div class="text-sm text-muted" style="margin-top:12px;">Toutes vos données ont été transmises au responsable. À demain ! 👋</div>
+      <div class="text-sm text-muted" style="margin-top:12px;">${i18n.t('cloture_msg')}</div>
     </div>`;
   },
 
@@ -520,11 +552,11 @@ const DriverPage = {
 
   async submitDepart() {
     const km = document.getElementById('km-depart').value;
-    if (!km) return toast('Merci de saisir le kilométrage de départ.');
+    if (!km) return toast(i18n.t('km_required'));
 
     const btn = document.getElementById('btn-depart');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Envoi...';
+    btn.innerHTML = `<span class="spinner"></span> ${i18n.t('sending')}`;
 
     try {
       let photoUrl = null, mobilicUrl = null;
@@ -548,26 +580,26 @@ const DriverPage = {
       document.getElementById('step-retour').style.display = 'block';
       document.getElementById('step-matin-btn').className = 'step-item done';
       document.getElementById('step-soir-btn').className = 'step-item active';
-      document.getElementById('statut-badge').innerHTML = '<span class="badge b-amber">En tournée</span>';
+      document.getElementById('statut-badge').innerHTML = `<span class="badge b-amber">${i18n.t('statut_en_tournee')}</span>`;
       DriverPage.statut = 'en_tournee';
-      toast('Départ enregistré ✓');
+      toast('✓');
     } catch(e) {
       toast('Erreur : ' + e.message);
       btn.disabled = false;
-      btn.innerHTML = '✈️ Enregistrer le départ';
+      btn.innerHTML = i18n.t('btn_depart');
     }
   },
 
   async submitRetour() {
     const km = document.getElementById('km-retour').value;
-    if (!km) return toast('Merci de saisir le kilométrage de retour.');
+    if (!km) return toast(i18n.t('km_retour_required'));
 
     const { data: t } = await supabase.from('tournees').select('km_depart').eq('id', DriverPage.tourneeId).maybeSingle();
-    if (t?.km_depart && parseInt(km) <= t.km_depart) return toast('Le km de retour doit être supérieur au km de départ.');
+    if (t?.km_depart && parseInt(km) <= t.km_depart) return toast(i18n.t('km_retour_error'));
 
     const btn = document.getElementById('btn-retour');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Clôture...';
+    btn.innerHTML = `<span class="spinner"></span> ${i18n.t('closing')}`;
 
     try {
       let photoUrl = null, mobilicUrl = null;
@@ -590,15 +622,15 @@ const DriverPage = {
       document.getElementById('step-retour').style.display = 'none';
       document.getElementById('step-cloture').style.display = 'block';
       document.getElementById('step-soir-btn').className = 'step-item done';
-      document.getElementById('statut-badge').innerHTML = '<span class="badge b-green">Clôturé ✓</span>';
+      document.getElementById('statut-badge').innerHTML = `<span class="badge b-green">${i18n.t('statut_cloture')}</span>`;
 
       const { data: updated } = await supabase.from('tournees').select('*').eq('id', DriverPage.tourneeId).maybeSingle();
       document.getElementById('step-cloture').innerHTML = DriverPage.renderCloture(updated);
-      toast('Tournée clôturée ✓');
+      toast('✓');
     } catch(e) {
       toast('Erreur : ' + e.message);
       btn.disabled = false;
-      btn.innerHTML = '🔒 Clôturer la tournée';
+      btn.innerHTML = i18n.t('btn_retour');
     }
   }
 };
