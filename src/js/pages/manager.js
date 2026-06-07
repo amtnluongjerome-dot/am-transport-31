@@ -1224,7 +1224,6 @@ const ManagerPage = {
       }
 
       toast('Lien généré ✓');
-      if (!fullNameOverride) ManagerPage.loadAdmin();
 
     } catch(e) {
       toast('Erreur : ' + e.message);
