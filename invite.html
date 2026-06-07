@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Créer mon compte — AM Transport 31</title>
+  <link rel="stylesheet" href="src/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>">
+  <style>
+    body { background: #F9FAFB; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .invite-box { background: #fff; border-radius: 20px; padding: 36px 32px; width: 100%; max-width: 400px; box-shadow: 0 8px 40px rgba(0,0,0,0.10); }
+    .invite-logo { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .invite-sub { font-size: 13px; color: #6B7280; margin-bottom: 28px; }
+    .invite-name { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 20px; padding: 12px 14px; background: #F0FDF4; border-radius: 10px; border: 1px solid #D1FAE5; }
+    .invite-label { font-size: 12px; font-weight: 600; color: #6B7280; margin-bottom: 5px; display: block; }
+    .invite-input { width: 100%; padding: 10px 13px; border: 1px solid #E5E7EB; border-radius: 10px; font-size: 14px; box-sizing: border-box; margin-bottom: 14px; outline: none; transition: border .15s; }
+    .invite-input:focus { border-color: #1E40AF; }
+    .invite-btn { width: 100%; padding: 13px; border-radius: 12px; border: none; background: #1E40AF; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: background .15s; }
+    .invite-btn:hover { background: #1E3A8A; }
+    .invite-btn:disabled { background: #9CA3AF; cursor: not-allowed; }
+    .invite-err { background: #FEE2E2; color: #991B1B; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; display: none; }
+    .invite-ok { background: #D1FAE5; color: #166534; border-radius: 10px; padding: 16px 14px; font-size: 14px; font-weight: 600; text-align: center; display: none; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pw-hint { font-size: 11px; color: #9CA3AF; margin-top: -10px; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <div class="invite-box">
+    <div class="invite-logo">🚚 AM Transport 31</div>
+    <div class="invite-sub">Création de ton compte chauffeur</div>
+
+    <div id="invite-loading" style="text-align:center;color:#6B7280;font-size:14px;padding:20px 0;">Vérification du lien...</div>
+
+    <div id="invite-form" style="display:none;">
+      <div class="invite-name" id="invite-fullname"></div>
+      <div class="invite-err" id="invite-err"></div>
+
+      <label class="invite-label">Ton email perso</label>
+      <input class="invite-input" type="email" id="inv-email" placeholder="jean@gmail.com" autocomplete="email">
+
+      <label class="invite-label">Choisis un mot de passe</label>
+      <input class="invite-input" type="password" id="inv-pwd" placeholder="Min. 8 caractères" autocomplete="new-password">
+      <div class="pw-hint">Au moins 8 caractères</div>
+
+      <label class="invite-label">Confirme ton mot de passe</label>
+      <input class="invite-input" type="password" id="inv-pwd2" placeholder="Répète ton mot de passe" autocomplete="new-password">
+
+      <button class="invite-btn" id="inv-btn" onclick="submitInvite()">Créer mon compte</button>
+    </div>
+
+    <div class="invite-ok" id="invite-ok">
+      Compte créé !<br><br>
+      <span style="font-size:13px;font-weight:400;">Tu peux maintenant te connecter sur l'application.</span><br><br>
+      <a href="/" style="color:#166534;font-size:13px;font-weight:600;">Aller sur l'app</a>
+    </div>
+
+    <div class="invite-err" id="invite-invalid" style="display:none;">
+      Ce lien est invalide ou expiré.<br>
+      <span style="font-size:12px;">Demande un nouveau lien à ton responsable.</span>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="src/js/supabase.js"></script>
+  <script>
+    let _token = null;
+    let _fullName = null;
+
+    async function initInvite() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!token) { showInvalid(); return; }
+
+      const { data, error } = await supabase
+        .from('invitation_tokens')
+        .select('*')
+        .eq('token', token)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      document.getElementById('invite-loading').style.display = 'none';
+
+      if (error || !data) { showInvalid(); return; }
+
+      _token = token;
+      _fullName = data.full_name;
+      document.getElementById('invite-fullname').textContent = '👤 ' + _fullName;
+      document.getElementById('invite-form').style.display = 'block';
+    }
+
+    function showInvalid() {
+      document.getElementById('invite-loading').style.display = 'none';
+      document.getElementById('invite-invalid').style.display = 'block';
+    }
+
+    function showErr(msg) {
+      const el = document.getElementById('invite-err');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideErr() {
+      document.getElementById('invite-err').style.display = 'none';
+    }
+
+    async function submitInvite() {
+      hideErr();
+      const email = document.getElementById('inv-email').value.trim();
+      const pwd   = document.getElementById('inv-pwd').value;
+      const pwd2  = document.getElementById('inv-pwd2').value;
+
+      if (!email) return showErr('Merci de saisir ton email.');
+      if (pwd.length < 8) return showErr('Le mot de passe doit faire au moins 8 caractères.');
+      if (pwd !== pwd2) return showErr('Les mots de passe ne correspondent pas.');
+
+      const btn = document.getElementById('inv-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Création...';
+
+      try {
+        const { data: authData, error: authErr } = await supabase.auth.signUp({
+          email,
+          password: pwd,
+          options: { data: { full_name: _fullName } }
+        });
+
+        if (authErr) throw authErr;
+
+        const userId = authData.user?.id;
+        if (!userId) throw new Error('Erreur lors de la création du compte.');
+
+        const { error: profileErr } = await supabase.from('profiles').upsert({
+          id: userId,
+          full_name: _fullName,
+          email: email,
+          role: 'driver'
+        }, { onConflict: 'id' });
+
+        if (profileErr) throw profileErr;
+
+        await supabase
+          .from('invitation_tokens')
+          .update({ used: true })
+          .eq('token', _token);
+
+        document.getElementById('invite-form').style.display = 'none';
+        document.getElementById('invite-ok').style.display = 'block';
+
+      } catch(e) {
+        showErr(e.message || 'Une erreur est survenue.');
+        btn.disabled = false;
+        btn.innerHTML = 'Créer mon compte';
+      }
+    }
+
+    initInvite();
+  </script>
+</body>
+</html>
