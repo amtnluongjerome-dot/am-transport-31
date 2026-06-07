@@ -197,3 +197,38 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .driver-page { padding: 16px; max-width: 600px; margin: 0 auto; }
 .success-card { background: var(--green-light); border: 0.5px solid var(--green-border); border-radius: var(--radius-lg); padding: 28px; text-align: center; }
 .success-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+@media (max-width: 768px) {
+  #menu-toggle {
+    display: block !important;
+  }
+  #manager-sidebar {
+    position: fixed !important;
+    left: -280px !important;
+    top: 0 !important;
+    height: 100vh !important;
+    width: 260px !important;
+    z-index: 100 !important;
+    transition: left 0.3s ease !important;
+    background: white !important;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15) !important;
+    overflow-y: auto !important;
+    padding-top: 60px !important;
+  }
+  #manager-sidebar.open {
+    left: 0 !important;
+  }
+  .main-layout {
+    flex-direction: column !important;
+  }
+  .content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+  .stats-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .card-title {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+}
