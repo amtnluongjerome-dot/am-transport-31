@@ -23,6 +23,36 @@ const DriverPage = {
 
     DriverPage.attribution = attr;
 
+    // Vérifie le planning du jour
+    const { data: planningToday } = await supabase
+      .from('planning')
+      .select('*')
+      .eq('profile_id', p.id)
+      .eq('date', today())
+      .maybeSingle();
+
+    const statutPlanning = planningToday?.statut || null;
+
+    // Si pas travail → affiche écran spécial
+    if (statutPlanning && statutPlanning !== 'travail') {
+      document.getElementById('screen-driver').innerHTML = `
+      <div class="topbar">
+        <div class="logo-mark">🚚 AM Transport 31</div>
+        <div class="user-pill">
+          <div class="av-sm" style="background:${c.bg};color:${c.color};">${initials(p.full_name)}</div>
+          <span>${p.full_name}</span>
+          <button class="btn-link" onclick="App.logout()" style="margin-left:10px;">⬅ Déconnexion</button>
+        </div>
+      </div>
+      <div class="driver-page">
+        ${DriverPage.renderStatutSpecial(statutPlanning, p.full_name)}
+        <div id="driver-perf-section"></div>
+      </div>`;
+      await DriverPage.loadPerformance(p.full_name);
+      return;
+    }
+
+    // Si travail ou pas de planning → affiche écran mission
     let { data: tournee } = await supabase
       .from('tournees')
       .select('*')
@@ -49,6 +79,9 @@ const DriverPage = {
     const vagueNum = attr?.vague;
     const vague = vagueNum === '1' ? '1ère vague — 12h10' : vagueNum === '2' ? '2ème vague — 12h20' : vagueNum === '3' ? '3ème vague' : null;
 
+    // Si départ pas encore accepté → écran mission
+    const missionAccepted = DriverPage.statut !== 'depart' || sessionStorage.getItem('mission_accepted_' + today());
+
     document.getElementById('screen-driver').innerHTML = `
     <div class="topbar">
       <div class="logo-mark">🚚 AM Transport 31</div>
@@ -59,6 +92,8 @@ const DriverPage = {
       </div>
     </div>
     <div class="driver-page">
+
+      ${!missionAccepted ? DriverPage.renderMissionAccept(p.full_name) : `
 
       ${!plaque ? `<div class="notif warn" style="margin-bottom:14px;">⚠️ Aucun véhicule attribué aujourd'hui. Contactez votre responsable.</div>` : ''}
 
@@ -94,16 +129,83 @@ const DriverPage = {
         ${DriverPage.renderCloture(tournee)}
       </div>
 
-      <div id="driver-perf-section"></div>
+      `}
 
+      <div id="driver-perf-section"></div>
     </div>`;
 
     await DriverPage.loadPerformance(p.full_name);
   },
 
+  renderMissionAccept(name) {
+    return `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px;">
+      <div style="font-size:72px;margin-bottom:24px;animation:pulse 2s infinite;">🎯</div>
+      <div style="font-size:13px;text-transform:uppercase;letter-spacing:3px;color:#9CA3AF;margin-bottom:12px;">Message de votre responsable</div>
+      <div style="font-size:28px;font-weight:800;color:#1a1a1a;margin-bottom:8px;line-height:1.3;">
+        Bonjour ${name.split(' ')[0]} !
+      </div>
+      <div style="font-size:20px;font-weight:600;color:#374151;margin-bottom:32px;line-height:1.4;">
+        Une mission t'attend...<br>si tu l'acceptes. 🚚
+      </div>
+      <button onclick="DriverPage.acceptMission()" style="background:linear-gradient(135deg,#1a56db,#0e3fa0);color:#fff;border:none;border-radius:16px;padding:18px 48px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(26,86,219,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        ✅ J'accepte la mission !
+      </button>
+      <div style="margin-top:16px;font-size:12px;color:#9CA3AF;">Ce message s'autodétruira après votre tournée 💥</div>
+    </div>`;
+  },
+
+  acceptMission() {
+    sessionStorage.setItem('mission_accepted_' + today(), '1');
+    DriverPage.init();
+  },
+
+  renderStatutSpecial(statut, name) {
+    const prenom = name.split(' ')[0];
+    const configs = {
+      repos: {
+        emoji: '😴',
+        titre: `Repose-toi bien ${prenom} !`,
+        message: 'Profite de ta journée, recharge les batteries 🔋\nLa route peut attendre !',
+        bg: 'linear-gradient(135deg,#F0FDF4,#DCFCE7)',
+        color: '#166534',
+      },
+      cut: {
+        emoji: '⏳',
+        titre: `Reste dans le coin ${prenom} !`,
+        message: 'Tu pourrais être rappelé à tout moment... ✂️\nGarde ton téléphone près de toi !',
+        bg: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)',
+        color: '#9A3412',
+      },
+      mad: {
+        emoji: '📲',
+        titre: `En attente de mission ${prenom} !`,
+        message: 'Tiens-toi prêt, on peut t\'appeler à tout moment 🔵\nReste disponible et réactif !',
+        bg: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)',
+        color: '#1E40AF',
+      },
+    };
+
+    const cfg = configs[statut] || configs['repos'];
+
+    // Planning des prochains jours
+    return `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;text-align:center;padding:32px;">
+      <div style="font-size:80px;margin-bottom:24px;">${cfg.emoji}</div>
+      <div style="background:${cfg.bg};border-radius:24px;padding:32px 40px;max-width:480px;width:100%;">
+        <div style="font-size:24px;font-weight:800;color:${cfg.color};margin-bottom:12px;">${cfg.titre}</div>
+        <div style="font-size:16px;color:${cfg.color};opacity:0.8;line-height:1.6;white-space:pre-line;">${cfg.message}</div>
+      </div>
+      <div id="driver-next-planning" style="margin-top:24px;width:100%;max-width:480px;"></div>
+    </div>`;
+  },
+
   async loadPerformance(fullName) {
     const el = document.getElementById('driver-perf-section');
     if (!el) return;
+
+    // Charge aussi le planning des prochains jours
+    await DriverPage.loadNextPlanning();
 
     try {
       const { data: semaines } = await supabase
@@ -121,6 +223,54 @@ const DriverPage = {
       await DriverPage.renderPerformance();
     } catch(e) {
       console.error('Erreur performances:', e);
+    }
+  },
+
+  async loadNextPlanning() {
+    const p = Auth.currentProfile;
+    const el = document.getElementById('driver-next-planning');
+    if (!el) return;
+
+    try {
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      const { data: planning } = await supabase
+        .from('planning')
+        .select('*')
+        .eq('profile_id', p.id)
+        .gte('date', tomorrow)
+        .lte('date', weekEnd)
+        .order('date', { ascending: true });
+
+      if (!planning || planning.length === 0) return;
+
+      const icons = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
+      const labels = { travail:'Travail', repos:'Repos', cut:'Cut', mad:'MAD' };
+      const colors = {
+        travail: 'background:#D1FAE5;color:#166534;',
+        repos: 'background:#F3F4F6;color:#6B7280;',
+        cut: 'background:#FEE2E2;color:#991B1B;',
+        mad: 'background:#DBEAFE;color:#1E40AF;',
+      };
+
+      el.innerHTML = `
+      <div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:12px;">📅 Mes prochains jours</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${planning.map(p => {
+            const d = new Date(p.date);
+            const label = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+            const style = colors[p.statut] || colors.repos;
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;${style}">
+              <span style="font-size:13px;font-weight:500;text-transform:capitalize;">${label}</span>
+              <span style="font-size:13px;font-weight:700;">${icons[p.statut]||''} ${labels[p.statut]||p.statut}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    } catch(e) {
+      console.error('Erreur planning:', e);
     }
   },
 
