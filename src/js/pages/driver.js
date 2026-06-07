@@ -278,7 +278,7 @@ const DriverPage = {
 
     try {
       const startDate = new Date();
-      const days = Array.from({length: 14}, (_, i) => {
+      const days = Array.from({length: 7}, (_, i) => {
         const d = new Date(startDate.getTime() + i * 86400000);
         return {
           date: d.toISOString().split('T')[0],
@@ -291,7 +291,7 @@ const DriverPage = {
         .select('*')
         .eq('profile_id', p.id)
         .gte('date', days[0].date)
-        .lte('date', days[13].date)
+        .lte('date', days[6].date)
         .order('date', { ascending: true });
 
       const icons  = { travail:'🟢', repos:'😴', cut:'✂️', mad:'📲' };
@@ -308,7 +308,7 @@ const DriverPage = {
 
       el.innerHTML = `
       <div class="card" style="margin-top:16px;">
-        <div class="card-title">📅 Mon planning — 14 prochains jours</div>
+        <div class="card-title">📅 Mon planning — 7 prochains jours</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           ${days.map(d => {
             const entry = planningMap[d.date];
